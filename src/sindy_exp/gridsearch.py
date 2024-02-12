@@ -6,13 +6,12 @@ from typing import Annotated, Callable, Iterable, Optional, Sequence, TypeVar
 
 import matplotlib.pyplot as plt
 import numpy as np
+import sindy_exp
 from numpy.typing import DTypeLike, NDArray
 from scipy.stats import kstest
-
-import gen_experiments
-from gen_experiments import config
-from gen_experiments.odes import plot_ode_panel
-from gen_experiments.utils import (
+from sindy_exp import config
+from sindy_exp.odes import plot_ode_panel
+from sindy_exp.utils import (
     GridsearchResult,
     GridsearchResultDetails,
     NestedDict,
@@ -71,7 +70,7 @@ def run(
             are made skinny with respect to each other.
     """
     other_params = NestedDict(**other_params)
-    base_ex, base_group = gen_experiments.experiments[group]
+    base_ex, base_group = sindy_exp.experiments[group]
     if series_params is None:
         series_params = SeriesList(None, None, [SeriesDef(group, {}, [], [])])
         legends = False

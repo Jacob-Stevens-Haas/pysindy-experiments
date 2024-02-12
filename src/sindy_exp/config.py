@@ -2,8 +2,7 @@ from typing import TypeVar
 
 import numpy as np
 import pysindy as ps
-
-from gen_experiments.utils import (
+from sindy_exp.utils import (
     FullTrialData,
     NestedDict,
     SeriesDef,

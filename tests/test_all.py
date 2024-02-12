@@ -1,7 +1,6 @@
 import numpy as np
 import pytest
-
-from gen_experiments import gridsearch, utils
+from sindy_exp import gridsearch, utils
 
 
 def test_thin_indexing():

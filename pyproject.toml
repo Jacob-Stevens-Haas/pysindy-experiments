@@ -5,9 +5,9 @@ build-backend = "setuptools.build_meta"
 [project]
 name = "pysindy-experiments"
 dynamic = ["version"]
-description = "My general exam experiments"
+description = "A flexible library for constructing SINDy experiments"
 readme = "README.md"
-requires-python = ">=3.9"
+requires-python = ">=3.10"
 license = {file = "LICENSE"}
 keywords = ["Machine Learning", "Science", "Mathematics", "Experiments"]
 authors = [
@@ -30,25 +30,24 @@ dependencies = [
   "pysindy[cvxpy,miosr] @ git+https://github.com/dynamicslab/pysindy@master",
   "kalman @ git+https://github.com/Jacob-Stevens-Haas/kalman@0.1.0",
   "auto_ks @ git+https://github.com/cvxgrp/auto_ks.git@e60bcc6",
-  "pytest >= 6.0.0",
-  "pytest-cov",
-  "flake8",
-  "flake8-comprehensions>=3.1.0",
   "matplotlib",
   "numpy >= 1.20.0",
-  "black",
-  "coverage",
-  "isort",
-  "pre-commit",
-  "codecov",
   "seaborn",
-  "sqlalchemy<2.0",
-  "tomli",
 ]
 
 [project.optional-dependencies]
 dev = [
   "mypy",
+  "pytest >= 6.0.0",
+  "pytest-cov",
+  "flake8",
+  "flake8-comprehensions>=3.1.0",
+  "black",
+  "coverage",
+  "isort",
+  "pre-commit",
+  "codecov",
+  "tomli",
 ]
 
 [project.urls]
@@ -74,7 +73,7 @@ extend-exclude = '''
   | env
 )/
 '''
-preview = 1
+preview = true
 
 [tool.codespell]
 skip = '*.html,./env,./scratch/*,todo'

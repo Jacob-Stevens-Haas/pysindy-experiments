@@ -1,2 +1,3 @@
 # SINDy Experiments
-`pysindy` experiments on Kalman SINDy and single-step SINDy.
+A framework for constructing pysindy experiments with declarative syntax and
+configuration.
