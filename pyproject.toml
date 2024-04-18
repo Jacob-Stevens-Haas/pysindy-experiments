@@ -91,4 +91,4 @@ addopts = '-m "not slow"'
 markers = ["slow"]
 
 [tool.mypy]
-files = ["src/gen_experiments/__init__.py"]
+files = ["src/sindy_exp/__init__.py"]
