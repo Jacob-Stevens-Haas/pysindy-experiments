@@ -14,7 +14,7 @@ from matplotlib.axes import Axes
 from numpy.typing import DTypeLike, NDArray
 from scipy.stats import kstest
 
-import gen_experiments
+import sindy_exp
 
 from .. import config
 from ..data import gen_data, gen_pde_data
@@ -152,7 +152,7 @@ def run(
     """Run a grid-search wrapper of an experiment.
 
     Arguments:
-        group: an experiment registered in gen_experiments.  It must
+        group: an experiment registered in sindy_exp.  It must
             have a name and a metric_ordering attribute
         grid_params: kwarg names to grid and pass to
             experiment
@@ -173,15 +173,15 @@ def run(
     """
     logger.info(f"Beginning gridsearch of system: {group}")
     other_params = NestedDict(**other_params)
-    base_ex, base_group = gen_experiments.experiments[group]
-    if base_ex.__name__ == "gen_experiments.odes":
+    base_ex, base_group = sindy_exp.experiments[group]
+    if base_ex.__name__ == "sindy_exp.odes":
         plot_panel = plot_ode_panel
         data_step = gen_data
-    elif base_ex.__name__ == "gen_experiments.pdes":
+    elif base_ex.__name__ == "sindy_exp.pdes":
         plot_panel = plot_pde_panel
         data_step = gen_pde_data
     elif base_ex.__name__ == "NoExperiment":
-        data_step = gen_experiments.NoExperiment.gen_data
+        data_step = sindy_exp.NoExperiment.gen_data
         plot_panel = lambda trial_data: print(  # noqa
             f"I'm plotting {trial_data['model']}"
         )

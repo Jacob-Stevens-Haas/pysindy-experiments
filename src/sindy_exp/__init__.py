@@ -9,7 +9,7 @@ from pysindy import BaseDifferentiation, FiniteDifference, SINDy
 
 from . import gridsearch, odes, pdes
 from .typing import ProbData
-from .utils import SINDyTrialData, make_model  # noqa: F401
+from .utils import DynamicsTrialData, make_model  # noqa: F401
 
 this_module = importlib.import_module(__name__)
 BORING_ARRAY = np.ones((2, 2), dtype=float)
@@ -55,13 +55,13 @@ class NoExperiment:
     @staticmethod
     def run(
         *args: Any, return_all: bool = True, **kwargs: Any
-    ) -> Scores | tuple[Scores, SINDyTrialData]:
+    ) -> Scores | tuple[Scores, DynamicsTrialData]:
         metrics = defaultdict(
             lambda: 1,
             main=1,
         )
         if return_all:
-            trial_data: SINDyTrialData = {
+            trial_data: DynamicsTrialData = {
                 "dt": 1,
                 "coeff_true": BORING_ARRAY[:1],  # type: ignore
                 "coeff_fit": BORING_ARRAY[:1],  # type: ignore

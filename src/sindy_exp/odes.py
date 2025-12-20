@@ -5,10 +5,7 @@ from warnings import warn
 
 import matplotlib.pyplot as plt
 import numpy as np
-import pysindy as ps
-from pysindy.pysindy import _BaseSINDy
 
-from . import config
 from .plotting import (
     compare_coefficient_plots,
     plot_test_trajectories,
@@ -17,7 +14,7 @@ from .plotting import (
 from .typing import ProbData
 from .utils import (
     FullSINDyTrialData,
-    SINDyTrialData,
+    DynamicsTrialData,
     coeff_metrics,
     integration_metrics,
     make_model,
@@ -25,8 +22,6 @@ from .utils import (
     unionize_coeff_matrices,
 )
 
-name = "odes"
-lookup_dict = vars(config)
 metric_ordering = {
     "coeff_precision": "max",
     "coeff_f1": "max",
@@ -67,29 +62,6 @@ def add_forcing(
     return sum_of_terms
 
 
-def nonlinear_pendulum(
-    t, x, m=1, L=1, g=9.81, forcing=0, return_all=True
-):  # type:ignore
-    """Simple pendulum equation of motion
-
-    Arguments:
-        t (float): ignored if system and forcing is autonomous
-        x ([np.array, Sequence]): angular position and velocity
-        m (float): mass of pendulum weight in kilograms
-        L (float): length of pendulum in meters
-        g (float): gravitational acceleration in :math:`m/s^2`.
-        forcing ([float, Callable]): Constant forcing or forcing
-            function.  If function, accepts arguments (t, x).
-    """
-    if not isinstance(forcing, Callable):
-        const_force = forcing
-
-        def forcing(t, x):
-            return const_force
-
-    moment_of_inertia = m * L**2
-    return (x[1], (-m * g * np.sin(x[0]) + forcing(t, x)) / moment_of_inertia)
-
 
 p_duff = [0.2, 0.05, 1]
 p_lotka = [5, 1]
@@ -121,7 +93,7 @@ ode_setup = {
         "coeff_true": [
             {"y": -1, "z": -1},
             {"x": 1, "y": p_ross[0]},
-            {"1": p_ross[1], "z": -p_ross[2], "x z": 1},
+            {"z": p_ross[1], "z": -p_ross[2], "x z": 1},
         ],
     },
     "lorenz": {
@@ -211,7 +183,7 @@ def run(
     model: Optional[ps.pysindy._BaseSINDy] = None,
     display: bool = True,
     return_all: bool = False,
-) -> dict | tuple[dict, SINDyTrialData | FullSINDyTrialData]:
+) -> dict | tuple[dict, DynamicsTrialData | FullSINDyTrialData]:
     input_features = data.input_features
     dt = data.dt
     x_train = data.x_train
@@ -267,7 +239,7 @@ def run(
         smooth_x = model.differentiation_method.smoothed_x_
     else:  # using WeakPDELibrary
         smooth_x = x_train[0]
-    trial_data: SINDyTrialData = {
+    trial_data: DynamicsTrialData = {
         "dt": dt,
         "coeff_true": coeff_true,
         "coeff_fit": coefficients,
@@ -302,7 +274,7 @@ def ablate_feat(
     opt_params: dict,
     display: bool = True,
     return_all: bool = False,
-) -> dict | tuple[dict, SINDyTrialData | FullSINDyTrialData]:
+) -> dict | tuple[dict, DynamicsTrialData | FullSINDyTrialData]:
     """Like run(), but hide one input feature from model
 
     Temporary and highly WET.
@@ -336,7 +308,7 @@ def ablate_feat(
         smooth_x = model.differentiation_method.smoothed_x_
     else:  # using WeakPDELibrary
         smooth_x = x_train[0]
-    trial_data: SINDyTrialData = {
+    trial_data: DynamicsTrialData = {
         "dt": dt,
         "coeff_true": coeff_true,
         "coeff_fit": coefficients,

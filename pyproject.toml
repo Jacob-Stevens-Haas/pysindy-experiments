@@ -5,9 +5,9 @@ build-backend = "setuptools.build_meta"
 [project]
 name = "pysindy-experiments"
 dynamic = ["version"]
-description = "My general exam experiments"
+description = "A flexible library for constructing dynamics ML experiments"
 readme = "README.md"
-requires-python = ">=3.9"
+requires-python = ">=3.10"
 license = {file = "LICENSE"}
 keywords = ["Machine Learning", "Science", "Mathematics", "Experiments"]
 authors = [
@@ -23,13 +23,8 @@ classifiers = [
   "Operating System :: POSIX :: Linux",
 ]
 dependencies = [
-  "mitosis >=0.6.1",
-  "derivative >=0.6.3",
-  "pysindy[cvxpy,miosr] >=2.0.0rc3",
-  "kalman @ git+https://github.com/Jacob-Stevens-Haas/kalman@0.1.1",
-  "auto_ks @ git+https://github.com/cvxgrp/auto_ks.git@e60bcc6",
   "matplotlib",
-  "numpy >= 1.20.0",
+  "numpy >= 2.0.0",
   "seaborn",
 ]
 
@@ -50,9 +45,6 @@ dev = [
 
 [project.urls]
 homepage = "https://github.com/Jake-Stevens-Haas/gen-experiments"
-
-[project.entry-points.'derivative.hyperparam_opt']
-"kalman.gcv" = "gen_experiments.utils:kalman_generalized_cv"
 
 [tool.setuptools_scm]
 
@@ -79,7 +71,7 @@ ignore-words-list = "nd, aks, ser"
 
 [tool.isort]
 profile = "black"
-src_paths = ["src/gen_experiments", "tests"]
+src_paths = ["src/sindy_exp", "tests"]
 
 [tool.pytest.ini_options]
 filterwarnings = [
@@ -90,32 +82,17 @@ markers = ["slow"]
 
 [tool.mypy]
 files = [
-  "src/gen_experiments/__init__.py",
-  "src/gen_experiments/utils.py",
-  "src/gen_experiments/gridsearch/typing.py",
+  "src/sindy_exp/__init__.py",
+  "src/sindy_exp/utils.py",
+  "src/sindy_exp/gridsearch/typing.py",
   "tests/test_all.py",
   "tests/test_gridsearch.py",
 ]
-
-[[tool.mypy.overrides]]
-module="auto_ks.*"
-ignore_missing_imports=true
 
 [[tool.mypy.overrides]]
 module="sklearn.*"
 ignore_missing_imports=true
 
 [[tool.mypy.overrides]]
-module="pysindy.*"
-ignore_missing_imports=true
-
-[[tool.mypy.overrides]]
-module="kalman.*"
-ignore_missing_imports=true
-
-[[tool.mypy.overrides]]
 module="scipy.*"
 ignore_missing_imports=true
-
-[tool.mitosis.steps]
-data = ["gen_experiments.data:gen_data", "gen_experiments.config:no_dict"]

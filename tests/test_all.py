@@ -2,8 +2,8 @@ import numpy as np
 import pysindy as ps
 import pytest
 
-from gen_experiments.typing import NestedDict
-from gen_experiments.utils import unionize_coeff_matrices
+from sindy_exp.typing import NestedDict
+from sindy_exp.utils import unionize_coeff_matrices
 
 
 def test_flatten_nested_dict():

@@ -1,6 +1,5 @@
 commit-msg
 todo
-gen_experiments/trials/
 scratch/
 *.png
 debugme*.py

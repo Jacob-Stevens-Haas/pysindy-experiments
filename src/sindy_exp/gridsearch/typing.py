@@ -36,7 +36,7 @@ class GridLocator:
 
     Rather than specifying the exact point in the mega-grid of every
     varied axis, specify by result, e.g "all of the points from the
-    Kalman series that had the best mean squared error as noise was
+    series that had the best mean squared error as noise was
     varied.
 
     Logical AND is applied across the metric, keep_axis, AND param_match

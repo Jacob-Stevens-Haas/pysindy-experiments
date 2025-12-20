@@ -5,7 +5,6 @@ from typing import Annotated, TypedDict, cast
 from warnings import warn
 
 import auto_ks as aks
-import kalman
 import numpy as np
 import pysindy as ps
 import sklearn
@@ -18,7 +17,7 @@ from .typing import Float1D, Float2D, FloatND
 logger = logging.getLogger(__name__)
 
 
-class SINDyTrialData(TypedDict):
+class DynamicsTrialData(TypedDict):
     dt: float
     coeff_true: Annotated[Float2D, "(n_coord, n_features)"]
     coeff_fit: Annotated[Float2D, "(n_coord, n_features)"]
@@ -39,7 +38,7 @@ class SINDyTrialUpdate(TypedDict):
     x_sim: FloatND
 
 
-class FullSINDyTrialData(SINDyTrialData):
+class FullSINDyTrialData(DynamicsTrialData):
     t_sim: Float1D
     x_sim: np.ndarray
 
@@ -305,52 +304,3 @@ def simulate_test_data(model: ps.SINDy, dt: float, x_test: Float2D) -> SINDyTria
     # truncate if integration returns wrong number of points
     t_sim = cast(Float1D, t_test[: len(x_sim)])
     return {"t_sim": t_sim, "x_sim": x_sim, "t_test": t_test}
-
-
-def kalman_generalized_cv(
-    times: np.ndarray, measurements: np.ndarray, alpha0: float = 1, alpha_max=1e12
-):
-    """Find kalman parameter alpha using GCV error
-
-    See Boyd & Barratt, Fitting a Kalman Smoother to Data.  No regularization
-    """
-    measurements = measurements.reshape((-1, 1))
-    dt = times[1] - times[0]
-    Ai = np.array([[1, 0], [dt, 1]])
-    Qi = kalman.gen_Qi(dt)
-    Qi_rt_inv = np.linalg.cholesky(np.linalg.inv(Qi))
-    Qi_r_i_vec = np.reshape(Qi_rt_inv, (-1, 1))
-    Qi_proj = (
-        lambda vec: Qi_r_i_vec
-        @ (Qi_r_i_vec.T @ Qi_r_i_vec) ** -1
-        @ (Qi_r_i_vec.T)
-        @ vec
-    )
-    Hi = np.array([[0, 1]])
-    Ri = np.eye(1)
-    Ri_rt_inv = Ri
-    params0 = aks.KalmanSmootherParameters(Ai, Qi_rt_inv, Hi, Ri)
-    mask = np.ones_like(measurements, dtype=bool)
-    mask[::4] = False
-
-    def proj(curr_params, t):
-        W_n_s_v = np.reshape(curr_params.W_neg_sqrt, (-1, 1))
-        W_n_s_v = np.reshape(Qi_proj(W_n_s_v), (2, 2))
-        new_params = aks.KalmanSmootherParameters(Ai, W_n_s_v, Hi, Ri_rt_inv)
-        return new_params, t
-
-    params, info = aks.tune(params0, proj, measurements, K=mask, lam=0.1, verbose=False)
-    est_Q = np.linalg.inv(params.W_neg_sqrt @ params.W_neg_sqrt.T)
-    est_alpha = 1 / (est_Q / Qi).mean()
-    if est_alpha < 1 / alpha_max:
-        logger.warn(
-            f"Kalman GCV estimated alpha escaped bounds, assigning {1/alpha_max}"
-        )
-        return 1 / alpha_max
-    elif est_alpha > alpha_max:
-        logger.warn(f"Kalman GCV estimated alpha escaped bounds, assigning {alpha_max}")
-        return alpha_max
-    elif np.isnan(est_alpha):
-        raise ValueError("GCV Failed")
-    logger.info(f"Identified best alpha for Kalman GCV: {est_alpha}")
-    return est_alpha

@@ -5,15 +5,15 @@ from pathlib import Path
 from typing import Any, Callable, Optional, cast
 from warnings import warn
 
-import mitosis
 import numpy as np
 import scipy
+from dysts import flows
 
-from gen_experiments.gridsearch.typing import GridsearchResultDetails
-from gen_experiments.odes import ode_setup
-from gen_experiments.pdes import pde_setup
-from gen_experiments.plotting import plot_training_data
-from gen_experiments.typing import Float1D, Float2D, ProbData
+from sindy_exp.gridsearch.typing import GridsearchResultDetails
+from sindy_exp.odes import ode_setup
+from sindy_exp.pdes import pde_setup
+from sindy_exp.plotting import plot_training_data
+from sindy_exp.typing import Float1D, Float2D, ProbData
 
 INTEGRATOR_KEYWORDS = {"rtol": 1e-12, "method": "LSODA", "atol": 1e-12}
 TRIALS_FOLDER = Path(__file__).parent.absolute() / "trials"
@@ -352,12 +352,3 @@ def _max_amplitude(signal: np.ndarray, axis: int) -> float:
 
 def _signal_avg_power(signal: np.ndarray) -> float:
     return np.square(signal).mean()
-
-
-def load_results(hexstr: str) -> GridsearchResultDetails:
-    """Load the results that mitosis saves
-
-    Args:
-        hexstr: randomly-assigned identifier for the results to open
-    """
-    return mitosis.load_trial_data(hexstr, trials_folder=TRIALS_FOLDER)

@@ -2,8 +2,8 @@ import numpy as np
 import pysindy as ps
 import pytest
 
-from gen_experiments import gridsearch
-from gen_experiments.gridsearch.typing import (
+from sindy_exp import gridsearch
+from sindy_exp.gridsearch.typing import (
     GridsearchResultDetails,
     SavedGridPoint,
     SeriesData,

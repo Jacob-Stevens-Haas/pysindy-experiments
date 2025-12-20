@@ -7,7 +7,7 @@ from .plotting import compare_coefficient_plots, plot_pde_training_data
 from .typing import ProbData
 from .utils import (
     FullSINDyTrialData,
-    SINDyTrialData,
+    DynamicsTrialData,
     coeff_metrics,
     integration_metrics,
     make_model,
@@ -142,7 +142,7 @@ def run(
     opt_params: dict,
     display: bool = True,
     return_all: bool = False,
-) -> dict | tuple[dict, SINDyTrialData | FullSINDyTrialData]:
+) -> dict | tuple[dict, DynamicsTrialData | FullSINDyTrialData]:
     dt = data.dt
     t_train = data.t_train
     x_train = data.x_train
@@ -157,7 +157,7 @@ def run(
     coeff_true, coefficients, feature_names = unionize_coeff_matrices(model, coeff_true)
 
     sim_ind = -1
-    trial_data: SINDyTrialData = {
+    trial_data: DynamicsTrialData = {
         "dt": dt,
         "coeff_true": coeff_true,
         "coeff_fit": coefficients,
