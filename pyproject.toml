@@ -14,7 +14,7 @@ authors = [
   {email = "jacob.stevens.haas@gmail.com", name = "Jake Stevens-Haas"}
 ]
 classifiers = [
-  "Development Status :: 1 - Planning",
+  "Development Status :: 4 - Beta Copy",
   "Programming Language :: Python",
   "Framework :: Jupyter",
   "Intended Audience :: Science/Research",
@@ -26,10 +26,19 @@ dependencies = [
   "matplotlib",
   "numpy >= 2.0.0",
   "seaborn",
+  "scipy",
+  "sympy",
+  "dysts",
 ]
 
 [project.optional-dependencies]
+jax = [
+  "jax[cuda12]",
+  "diffrax",
+  "sympy2jax",
+]
 dev = [
+  "ipykernel",
   "mypy",
   "pytest >= 6.0.0",
   "pytest-cov",
@@ -84,9 +93,7 @@ markers = ["slow"]
 files = [
   "src/sindy_exp/__init__.py",
   "src/sindy_exp/utils.py",
-  "src/sindy_exp/gridsearch/typing.py",
   "tests/test_all.py",
-  "tests/test_gridsearch.py",
 ]
 
 [[tool.mypy.overrides]]

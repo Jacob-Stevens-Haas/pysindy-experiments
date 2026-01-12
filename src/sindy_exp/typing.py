@@ -1,5 +1,5 @@
 from collections import defaultdict
-from typing import NamedTuple, TypeVar
+from typing import NamedTuple, TypeVar, Protocol, Any, Self
 
 import numpy as np
 from numpy.typing import NBitBase
@@ -9,6 +9,40 @@ Float1D = np.ndarray[tuple[int], NpFlt]
 Float2D = np.ndarray[tuple[int, int], NpFlt]
 Shape = TypeVar("Shape", bound=tuple[int, ...])
 FloatND = np.ndarray[Shape, np.dtype[np.floating[NBitBase]]]
+
+
+TrajectoryType = TypeVar("TrajectoryType", list[np.ndarray], np.ndarray)
+
+class _BaseSINDy(Protocol):
+    optimizer: Any
+    feature_library: Any
+
+    def fit(self, x: TrajectoryType, t: TrajectoryType, *args, **kwargs) -> Self:
+        ...
+
+    def simulate(self, x0: np.ndarray, t: np.ndarray) -> np.ndarray:
+        ...
+
+    def score(
+        self, x: TrajectoryType, t: TrajectoryType, x_dot: TrajectoryType
+    ) -> float:
+        ...
+
+    def predict(self, x: np.ndarray, u: None | np.ndarray) -> np.ndarray:
+        ...
+
+    def coefficients(self):
+        ...
+
+    def equations(self, precision: int) -> list[str]:
+        ...
+
+    def print(self, precision: int, **kwargs) -> None:
+        ...
+
+    def get_feature_names(self) -> list[str]:
+        ...
+
 
 
 class ProbData(NamedTuple):

@@ -7,7 +7,7 @@ import numpy as np
 from numpy.typing import NDArray
 from pysindy import BaseDifferentiation, FiniteDifference, SINDy
 
-from . import gridsearch, odes, pdes
+from . import odes
 from .typing import ProbData
 from .utils import DynamicsTrialData, make_model  # noqa: F401
 
@@ -92,12 +92,5 @@ experiments: dict[str, tuple[Any, str | None]] = {
     "duff": (odes, "duff"),
     "lv": (odes, "lv"),
     "ross": (odes, "ross"),
-    "gridsearch": (gridsearch, None),
-    "diffuse1D_dirichlet": (pdes, "diffuse1D_dirichlet"),
-    "diffuse1D_periodic": (pdes, "diffuse1D_periodic"),
-    "burgers1D_dirichlet": (pdes, "burgers1D_dirichlet"),
-    "burgers1D_periodic": (pdes, "burgers1D_periodic"),
-    "ks_dirichlet": (pdes, "ks_dirichlet"),
-    "ks_periodic": (pdes, "ks_periodic"),
     "none": (NoExperiment, None),
 }

@@ -10,8 +10,6 @@ from matplotlib.axes import Axes
 from matplotlib.figure import Figure
 from matplotlib.typing import ColorType
 
-from .gridsearch.typing import GridLocator
-
 PAL = sns.color_palette("Set1")
 PLOT_KWS = {"alpha": 0.7, "linewidth": 3}
 
@@ -49,29 +47,6 @@ class _ColorConstants:
 
 
 COLOR = _ColorConstants(mpl.color_sequences["tab10"])
-
-
-@dataclass(frozen=True)
-class _PlotPrefs:
-    """Control which gridsearch data gets plotted, and a bit of how
-
-    Args:
-        plot: whether to plot
-        rel_noise: Whether and how to convert true noise into relative noise
-        grid_params_match: dictionaries of parameters to match when plotted. OR
-            is applied across the collection
-        grid_ind_match: indexing tuple to match indices in a single series
-            gridsearch.  Only positive integers are allowed, except the first
-            element may be slice(None).  Alternatively, ellipsis to match all
-            indices
-    """
-
-    plot: bool = True
-    rel_noise: Literal[False] | Callable[..., dict[str, Sequence[Any]]] = False
-    plot_match: GridLocator = field(default_factory=lambda: GridLocator())
-
-    def __bool__(self):
-        return self.plot
 
 
 def plot_coefficients(

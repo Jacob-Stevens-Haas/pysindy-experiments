@@ -5,13 +5,14 @@ from warnings import warn
 
 import matplotlib.pyplot as plt
 import numpy as np
+import pysindy as ps
 
 from .plotting import (
     compare_coefficient_plots,
     plot_test_trajectories,
     plot_training_data,
 )
-from .typing import ProbData
+from .typing import ProbData, _BaseSINDy
 from .utils import (
     FullSINDyTrialData,
     DynamicsTrialData,
@@ -156,14 +157,6 @@ ode_setup = {
             {"1": -1},
         ],
     },
-    "pendulum": {
-        "rhsfunc": nonlinear_pendulum,
-        "input_features": ["x", "x'"],
-        "coeff_true": [
-            {"x'": 1},
-            {"sin(1 x)": -9.81},
-        ],
-    },
     "lorenz_xy": {
         "rhsfunc": ps.utils.lorenz,
         "input_features": ["x", "y", "z"],
@@ -180,7 +173,7 @@ def run(
     diff_params: Optional[dict] = None,
     feat_params: Optional[dict] = None,
     opt_params: Optional[dict] = None,
-    model: Optional[ps.pysindy._BaseSINDy] = None,
+    model: Optional[_BaseSINDy] = None,
     display: bool = True,
     return_all: bool = False,
 ) -> dict | tuple[dict, DynamicsTrialData | FullSINDyTrialData]:

@@ -24,12 +24,6 @@ There are two experiment steps made available:
 If you have data of your own, create a step that puts data in the same format as
 `sindy_exp.data.gen_data()`.
 
-In addition, tentative PDE and ragged gridsearch functionality is provided,
-though it may change without notice (it's a legacy of old papers):
-
-* `sindy_exp.gridsearch.run()`
-* `sindy_exp.data.gen_pde_data()`
-* `sindy_exp.pdes.run()`
 
 ## Plotting and diagnostics
 

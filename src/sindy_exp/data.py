@@ -5,13 +5,13 @@ from pathlib import Path
 from typing import Any, Callable, Optional, cast
 from warnings import warn
 
+import dysts.flows
+import dysts.systems
 import numpy as np
 import scipy
-from dysts import flows
 
-from sindy_exp.gridsearch.typing import GridsearchResultDetails
+
 from sindy_exp.odes import ode_setup
-from sindy_exp.pdes import pde_setup
 from sindy_exp.plotting import plot_training_data
 from sindy_exp.typing import Float1D, Float2D, ProbData
 
@@ -19,9 +19,25 @@ INTEGRATOR_KEYWORDS = {"rtol": 1e-12, "method": "LSODA", "atol": 1e-12}
 TRIALS_FOLDER = Path(__file__).parent.absolute() / "trials"
 MOD_LOG = getLogger(__name__)
 
+ODE_CLASSES = {
+    klass.lower(): getattr(dysts.flows, klass)
+    for klass in dysts.systems.get_attractor_list()
+}
+
+    "lv": {
+        "rhsfunc": partial(ps.utils.odes.lotka, p=p_lotka),
+        "input_features": ["x", "y"],
+        "coeff_true": [
+            {"x": p_lotka[0], "x y": -p_lotka[1]},
+            {"y": -2 * p_lotka[0], "x y": p_lotka[1]},
+        ],
+        "x0_center": 5 * np.ones(2),
+        "nonnegative": True,
+    },
+
 
 def gen_data(
-    group: str,
+    system: str,
     seed: Optional[int] = None,
     n_trajectories: int = 1,
     ic_stdev: float = 3,
@@ -37,7 +53,7 @@ def gen_data(
     Note that test data has no noise.
 
     Arguments:
-        group: the function to integrate
+        system: the system to integrate
         seed (int): the random seed for number generation
         n_trajectories (int): number of trajectories of training data
         ic_stdev (float): standard deviation for generating initial conditions
@@ -53,15 +69,21 @@ def gen_data(
     Returns:
         dictionary of data and descriptive information
     """
-    coeff_true = ode_setup[group]["coeff_true"]
-    input_features = ode_setup[group]["input_features"]
-    rhsfunc = ode_setup[group]["rhsfunc"]
     try:
-        x0_center = ode_setup[group]["x0_center"]
+        dyst_sys = ODE_CLASSES[system.lower()]()
+    except KeyError as e:
+        raise ValueError(
+            f"Unknown system {system}.  Check {__name__}.ODE_CLASSES"
+        ) from e
+    coeff_true = ode_setup[system]["coeff_true"]
+    input_features = ode_setup[system]["input_features"]
+    rhsfunc = dyst_sys.rhs
+    try:
+        x0_center = dyst_sys.ic
     except KeyError:
         x0_center = np.zeros((len(input_features)), dtype=np.float64)
     try:
-        nonnegative = ode_setup[group]["nonnegative"]
+        nonnegative = ode_setup[system]["nonnegative"]
     except KeyError:
         nonnegative = False
     if noise_abs is not None and noise_rel is not None:
@@ -69,7 +91,7 @@ def gen_data(
     elif noise_abs is None and noise_rel is None:
         noise_abs = 0.1
 
-    MOD_LOG.info(f"Generating {n_trajectories} trajectories of f{group}")
+    MOD_LOG.info(f"Generating {n_trajectories} trajectories of f{system}")
     dt, t_train, x_train, x_test, x_dot_test, x_train_true, x_train_true_dot = (
         _gen_data(
             rhsfunc,

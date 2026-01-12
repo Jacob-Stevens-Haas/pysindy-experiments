@@ -4,15 +4,13 @@ from itertools import chain
 from typing import Annotated, TypedDict, cast
 from warnings import warn
 
-import auto_ks as aks
 import numpy as np
 import pysindy as ps
 import sklearn
 import sklearn.metrics
 from numpy.typing import NDArray
-from pysindy.pysindy import _BaseSINDy
 
-from .typing import Float1D, Float2D, FloatND
+from .typing import Float1D, Float2D, FloatND, _BaseSINDy
 
 logger = logging.getLogger(__name__)
 
