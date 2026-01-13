@@ -9,11 +9,13 @@ import dysts.flows
 import dysts.systems
 import numpy as np
 import scipy
+import sympy as sp
 
 
-from sindy_exp.odes import ode_setup
-from sindy_exp.plotting import plot_training_data
-from sindy_exp.typing import Float1D, Float2D, ProbData
+from .odes import ode_setup
+from .plotting import plot_training_data
+from .typing import Float1D, Float2D, ProbData
+from ._dysts_to_sympy import dynsys_to_sympy
 
 try:
     from ._diffrax_solver import _gen_data_jax
@@ -28,6 +30,40 @@ ODE_CLASSES = {
     klass.lower(): getattr(dysts.flows, klass)
     for klass in dysts.systems.get_attractor_list()
 }
+
+
+def _sympy_expr_to_feat_coeff(sp_expr: list[sp.Expr]) -> list[dict[str, float]]:
+    expressions = []
+    def kv_term(term: sp.Expr) -> tuple[sp.Expr, float]:
+        if not isinstance(term, sp.Mul):
+            coeff = 1.0
+            feat = term
+        else:
+            try:
+                coeff = float(term.args[0])
+                args = term.args[1:]
+            except TypeError:
+                coeff = 1.0
+                args = term.args
+            if len(args) == 1:
+                feat = args[0]
+            else:
+                feat = sp.Mul(*args)
+        return feat, coeff
+
+
+    for exp in sp_expr:
+        expr_dict = {}
+        if not isinstance(exp, sp.Add):
+                feat, coeff  = kv_term(exp)
+                expr_dict[feat] = coeff
+        else:
+            for term in exp.args:
+                feat, coeff  = kv_term(term)
+                expr_dict[feat] = coeff
+
+        expressions.append(expr_dict)
+    return expressions
 
 
 def gen_data(
@@ -70,8 +106,9 @@ def gen_data(
         raise ValueError(
             f"Unknown system {system}.  Check {__name__}.ODE_CLASSES"
         ) from e
-    coeff_true = ode_setup[system]["coeff_true"]
-    input_features = ode_setup[system]["input_features"]
+    input_features, sp_expr, sp_lambda = dynsys_to_sympy(dyst_sys)
+    coeff_true = _sympy_expr_to_feat_coeff(sp_expr)
+    input_features = [feat.name for feat in input_features]
     rhsfunc = lambda t, X: dyst_sys.rhs(X, t)
     param_args = dyst_sys.params
     try:
@@ -79,7 +116,7 @@ def gen_data(
     except KeyError:
         x0_center = np.zeros((len(input_features)), dtype=np.float64)
     try:
-        nonnegative = ode_setup[system]["nonnegative"]
+        nonnegative = getattr(dyst_sys,"nonnegative", False)
     except KeyError:
         nonnegative = False
     if noise_abs is not None and noise_rel is not None:
