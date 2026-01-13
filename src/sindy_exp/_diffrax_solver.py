@@ -1,7 +1,8 @@
-from sympy import Lambda, Symbol
+from sympy import Lambda, Symbol, Expr
+import sympy2jax
 
 def solve_ivp(
-    fun: tuple[list[Symbol], exprs, Lambda],
+    fun: tuple[list[Symbol], list[Expr], Lambda],
     t_span,
     y0,
     method='RK45',
@@ -12,4 +13,4 @@ def solve_ivp(
     args=None,
     **options
 ):
-    
+    pass

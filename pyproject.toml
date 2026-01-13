@@ -50,6 +50,7 @@ dev = [
   "pre-commit",
   "codecov",
   "tomli",
+  "pysindy>=2.1.0",
 ]
 
 [project.urls]

@@ -7,7 +7,7 @@ except Exception:  # pragma: no cover - skip if dysts not installed
         "dysts not available; skipping inspect_to_sympy tests", allow_module_level=True
     )
 
-from asv_bench.benchmarks.inspect_to_sympy import dynsys_to_sympy
+from sindy_exp._dysts_to_sympy import dynsys_to_sympy
 
 
 def test_lorenz_to_sympy():

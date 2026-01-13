@@ -15,6 +15,11 @@ from sindy_exp.odes import ode_setup
 from sindy_exp.plotting import plot_training_data
 from sindy_exp.typing import Float1D, Float2D, ProbData
 
+try:
+    from ._diffrax_solver import _gen_data_jax
+except ImportError:
+    pass
+
 INTEGRATOR_KEYWORDS = {"rtol": 1e-12, "method": "LSODA", "atol": 1e-12}
 TRIALS_FOLDER = Path(__file__).parent.absolute() / "trials"
 MOD_LOG = getLogger(__name__)
@@ -23,17 +28,6 @@ ODE_CLASSES = {
     klass.lower(): getattr(dysts.flows, klass)
     for klass in dysts.systems.get_attractor_list()
 }
-
-    "lv": {
-        "rhsfunc": partial(ps.utils.odes.lotka, p=p_lotka),
-        "input_features": ["x", "y"],
-        "coeff_true": [
-            {"x": p_lotka[0], "x y": -p_lotka[1]},
-            {"y": -2 * p_lotka[0], "x y": p_lotka[1]},
-        ],
-        "x0_center": 5 * np.ones(2),
-        "nonnegative": True,
-    },
 
 
 def gen_data(
@@ -46,6 +40,7 @@ def gen_data(
     dt: float = 0.01,
     t_end: float = 10,
     display: bool = False,
+    array_namespace: str = "numpy",
 ) -> dict[str, Any]:
     """Generate random training and test data
 
@@ -77,7 +72,8 @@ def gen_data(
         ) from e
     coeff_true = ode_setup[system]["coeff_true"]
     input_features = ode_setup[system]["input_features"]
-    rhsfunc = dyst_sys.rhs
+    rhsfunc = lambda t, X: dyst_sys.rhs(X, t)
+    param_args = dyst_sys.params
     try:
         x0_center = dyst_sys.ic
     except KeyError:
@@ -92,21 +88,38 @@ def gen_data(
         noise_abs = 0.1
 
     MOD_LOG.info(f"Generating {n_trajectories} trajectories of f{system}")
-    dt, t_train, x_train, x_test, x_dot_test, x_train_true, x_train_true_dot = (
-        _gen_data(
-            rhsfunc,
-            len(input_features),
-            seed,
-            x0_center=x0_center,
-            nonnegative=nonnegative,
-            n_trajectories=n_trajectories,
-            ic_stdev=ic_stdev,
-            noise_abs=noise_abs,
-            noise_rel=noise_rel,
-            dt=dt,
-            t_end=t_end,
+    if array_namespace == "numpy":
+        dt, t_train, x_train, x_test, x_dot_test, x_train_true, x_train_true_dot = (
+            _gen_data(
+                rhsfunc,
+                len(input_features),
+                seed,
+                x0_center=x0_center,
+                nonnegative=nonnegative,
+                n_trajectories=n_trajectories,
+                ic_stdev=ic_stdev,
+                noise_abs=noise_abs,
+                noise_rel=noise_rel,
+                dt=dt,
+                t_end=t_end,
+            )
         )
-    )
+    elif array_namespace == "jax":
+        dt, t_train, x_train, x_test, x_dot_test, x_train_true, x_train_true_dot, integrator = (
+            _gen_data_jax(
+                rhsfunc,
+                len(input_features),
+                seed,
+                x0_center=x0_center,
+                nonnegative=nonnegative,
+                n_trajectories=n_trajectories,
+                ic_stdev=ic_stdev,
+                noise_abs=noise_abs,
+                noise_rel=noise_rel,
+                dt=dt,
+                t_end=t_end,
+            )
+        )
     if display:
         figs = plot_training_data(x_train[0], x_train_true[0])
         figs[0].suptitle("Sample Trajectory")
