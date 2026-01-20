@@ -1,6 +1,19 @@
 # Dynamics Experiments
 
-A framework for constructing dynamics experiments with declarative syntax and
+A library for constructing dynamics experiments.
+This includes data generation and plotting/evaluation.
+
+
+## Getting started
+
+It's not yet on pypi, so install it with `pip install sindy_exp @ git+https://github.com/Jacob-Stevens-Haas/gen-experiments`
+
+Generate data from any of the dysts systems with
+
+
+## Mitosis
+
+with declarative syntax and
 configuration.  These experiments are meant to be run via [`mitosis`](https://github.com/Jacob-Stevens-Haas/mitosis),
 but `mitosis` is not a requirement to run them.  It partially annotated with call signatures, and I'm happy to add more
 as people point them out.

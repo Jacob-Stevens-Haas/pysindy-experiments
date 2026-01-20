@@ -1,4 +1,3 @@
-from collections.abc import Sequence
 from logging import getLogger
 from math import ceil
 from pathlib import Path
@@ -11,16 +10,14 @@ import numpy as np
 import scipy
 import sympy as sp
 
-
-from .odes import ode_setup
+from ._dysts_to_sympy import dynsys_to_sympy
 from .plotting import plot_training_data
 from .typing import Float1D, Float2D, ProbData
-from ._dysts_to_sympy import dynsys_to_sympy
 
 try:
     from ._diffrax_solver import _gen_data_jax
 except ImportError:
-    pass
+    raise
 
 INTEGRATOR_KEYWORDS = {"rtol": 1e-12, "method": "LSODA", "atol": 1e-12}
 TRIALS_FOLDER = Path(__file__).parent.absolute() / "trials"
@@ -34,6 +31,7 @@ ODE_CLASSES = {
 
 def _sympy_expr_to_feat_coeff(sp_expr: list[sp.Expr]) -> list[dict[str, float]]:
     expressions = []
+
     def kv_term(term: sp.Expr) -> tuple[sp.Expr, float]:
         if not isinstance(term, sp.Mul):
             coeff = 1.0
@@ -51,15 +49,14 @@ def _sympy_expr_to_feat_coeff(sp_expr: list[sp.Expr]) -> list[dict[str, float]]:
                 feat = sp.Mul(*args)
         return feat, coeff
 
-
     for exp in sp_expr:
         expr_dict = {}
         if not isinstance(exp, sp.Add):
-                feat, coeff  = kv_term(exp)
-                expr_dict[feat] = coeff
+            feat, coeff = kv_term(exp)
+            expr_dict[feat] = coeff
         else:
             for term in exp.args:
-                feat, coeff  = kv_term(term)
+                feat, coeff = kv_term(term)
                 expr_dict[feat] = coeff
 
         expressions.append(expr_dict)
@@ -108,15 +105,13 @@ def gen_data(
         ) from e
     input_features, sp_expr, sp_lambda = dynsys_to_sympy(dyst_sys)
     coeff_true = _sympy_expr_to_feat_coeff(sp_expr)
-    input_features = [feat.name for feat in input_features]
-    rhsfunc = lambda t, X: dyst_sys.rhs(X, t)
-    param_args = dyst_sys.params
+    rhsfunc = lambda t, X: dyst_sys.rhs(X, t)  # noqa: E731
     try:
         x0_center = dyst_sys.ic
     except KeyError:
         x0_center = np.zeros((len(input_features)), dtype=np.float64)
     try:
-        nonnegative = getattr(dyst_sys,"nonnegative", False)
+        nonnegative = getattr(dyst_sys, "nonnegative", False)
     except KeyError:
         nonnegative = False
     if noise_abs is not None and noise_rel is not None:
@@ -126,6 +121,7 @@ def gen_data(
 
     MOD_LOG.info(f"Generating {n_trajectories} trajectories of f{system}")
     if array_namespace == "numpy":
+        input_features = [feat.name for feat in input_features]
         dt, t_train, x_train, x_test, x_dot_test, x_train_true, x_train_true_dot = (
             _gen_data(
                 rhsfunc,
@@ -141,21 +137,41 @@ def gen_data(
                 t_end=t_end,
             )
         )
+        integrator = None
     elif array_namespace == "jax":
-        dt, t_train, x_train, x_test, x_dot_test, x_train_true, x_train_true_dot, integrator = (
-            _gen_data_jax(
-                rhsfunc,
-                len(input_features),
-                seed,
-                x0_center=x0_center,
-                nonnegative=nonnegative,
-                n_trajectories=n_trajectories,
-                ic_stdev=ic_stdev,
-                noise_abs=noise_abs,
-                noise_rel=noise_rel,
-                dt=dt,
-                t_end=t_end,
+        try:
+            globals()["_gen_data_jax"]
+        except KeyError:
+            raise ImportError(
+                "jax data generation requested but diffrax or sympy2jax not"
+                " installed"
             )
+        (
+            dt,
+            t_train,
+            x_train,
+            x_test,
+            x_dot_test,
+            x_train_true,
+            x_train_true_dot,
+            integrator,
+        ) = _gen_data_jax(
+            (input_features, sp_expr),
+            len(input_features),
+            seed,
+            x0_center=x0_center,
+            nonnegative=nonnegative,
+            n_trajectories=n_trajectories,
+            ic_stdev=ic_stdev,
+            noise_abs=noise_abs,
+            noise_rel=noise_rel,
+            dt=dt,
+            t_end=t_end,
+        )
+        input_features = [feat.name for feat in input_features]
+    else:
+        raise ValueError(
+            f"Unknown array_namespace {array_namespace}.  Must be 'numpy' or 'jax'"
         )
     if display:
         figs = plot_training_data(x_train[0], x_train_true[0])
@@ -171,6 +187,7 @@ def gen_data(
             x_train_true_dot,
             input_features,
             coeff_true,
+            integrator,
         ),
         "main": f"{n_trajectories} trajectories of {rhsfunc}",
         "metrics": {"rel_noise": noise_rel, "abs_noise": noise_abs},
@@ -277,143 +294,6 @@ def _gen_data(
     x_train_true = list(x_train_true)
     x_train_true_dot = list(x_train_true_dot)
     return dt, t_train, x_train, x_test, x_dot_test, x_train_true, x_train_true_dot
-
-
-def gen_pde_data(
-    group: str,
-    init_cond: np.ndarray,
-    seed: int | None = None,
-    noise_abs: float | None = None,
-    rel_noise: float | None = None,
-) -> dict[str, Any]:
-    """Generate PDE measurement data for training
-
-    For simplicity, Trajectories have been removed,
-    Test data is the same as Train data.
-
-    Arguments:
-        group: name of the PDE
-        init_cond: Initial Conditions for the PDE
-        seed (int): the random seed for number generation
-        noise_abs (float): measurement noise standard deviation.
-            Defaults to .1 if noise_rel is None.
-        noise_rel (float): measurement noise relative to amplitude of
-            true data.  Amplitude of data is calculated as the max value
-             of the power spectrum.  Either noise_abs or noise_rel must
-             be None.  Defaults to None.
-
-    Returns:
-        dt, t_train, x_train, x_test, x_dot_test, x_train_true
-    """
-    rhsfunc = pde_setup[group]["rhsfunc"]["func"]
-    input_features = pde_setup[group]["input_features"]
-    if rel_noise is None:
-        rel_noise = 0.1
-    spatial_grid = pde_setup[group]["spatial_grid"]
-    spatial_args = [
-        (spatial_grid[-1] - spatial_grid[0]) / len(spatial_grid),
-        len(spatial_grid),
-    ]
-    time_args = pde_setup[group]["time_args"]
-    dimension = pde_setup[group]["rhsfunc"]["dimension"]
-    coeff_true = pde_setup[group]["coeff_true"]
-    try:
-        time_args = pde_setup[group]["time_args"]
-    except KeyError:
-        time_args = [0.01, 10]
-    dt, t_train, x_train, x_test, x_dot_test, x_train_true = _gen_pde_data(
-        rhsfunc,
-        init_cond,
-        spatial_args,
-        dimension,
-        seed,
-        noise_abs=noise_abs,
-        noise_rel=rel_noise,
-        dt=time_args[0],
-        t_end=time_args[1],
-    )
-    return {
-        "data": ProbData(
-            dt,
-            t_train,
-            x_train,
-            x_test,
-            x_dot_test,
-            x_train_true,
-            input_features,
-            coeff_true,
-        ),
-        "main": f"1 trajectories of {rhsfunc.__qualname__}",
-        "metrics": {"rel_noise": rel_noise, "abs_noise": noise_abs},
-    }
-
-
-def _gen_pde_data(
-    rhs_func: Callable,
-    init_cond: np.ndarray,
-    spatial_args: Sequence,
-    dimension: int,
-    seed: int | None,
-    noise_abs: float | None,
-    noise_rel: float | None,
-    dt: float,
-    t_end: int,
-):
-    if noise_abs is not None and noise_rel is not None:
-        raise ValueError("Cannot specify both noise_abs and noise_rel")
-    elif noise_abs is None and noise_rel is None:
-        noise_abs = 0.1
-    rng = np.random.default_rng(seed)
-    t_train = np.arange(0, t_end, dt)
-    t_train_span = (t_train[0], t_train[-1])
-    x_train = []
-    x_train.append(
-        scipy.integrate.solve_ivp(
-            rhs_func,
-            t_train_span,
-            init_cond,
-            t_eval=t_train,
-            args=spatial_args,
-            **INTEGRATOR_KEYWORDS,
-        ).y.T
-    )
-    t, x = x_train[0].shape
-    x_train = np.stack(x_train, axis=-1)
-    if dimension == 1:
-        pass
-    elif dimension == 2:
-        x_train = np.reshape(x_train, (t, int(np.sqrt(x)), int(np.sqrt(x)), 1))
-    elif dimension == 3:
-        x_train = np.reshape(
-            x_train, (t, int(np.cbrt(x)), int(np.cbrt(x)), int(np.cbrt(x)), 1)
-        )
-    x_test = x_train
-    x_test = np.moveaxis(x_test, -1, 0)
-    x_dot_test = np.array(
-        [
-            [rhs_func(0, xij, spatial_args[0], spatial_args[1]) for xij in xi]
-            for xi in x_test
-        ]
-    )
-    if dimension == 1:
-        x_dot_test = [np.moveaxis(x_dot_test, [0, 1], [-1, -2])]
-        pass
-    elif dimension == 2:
-        x_dot_test = np.reshape(x_dot_test, (t, int(np.sqrt(x)), int(np.sqrt(x)), 1))
-        x_dot_test = [np.moveaxis(x_dot_test, 0, -2)]
-    elif dimension == 3:
-        x_dot_test = np.reshape(
-            x_dot_test, (t, int(np.cbrt(x)), int(np.cbrt(x)), int(np.cbrt(x)), 1)
-        )
-        x_dot_test = [np.moveaxis(x_dot_test, 0, -2)]
-    x_train_true = np.copy(x_train)
-    if noise_rel is not None:
-        noise_abs = np.sqrt(_max_amplitude(x_test, axis=-2) * noise_rel)
-    x_train = x_train + cast(float, noise_abs) * rng.standard_normal(x_train.shape)
-    x_train = [np.moveaxis(x_train, 0, -2)]
-    x_train_true = np.moveaxis(x_train_true, 0, -2)
-    x_test = [np.moveaxis(x_test, [0, 1], [-1, -2])]
-    return dt, t_train, x_train, x_test, x_dot_test, x_train_true
 
 
 def _max_amplitude(signal: np.ndarray, axis: int) -> float:

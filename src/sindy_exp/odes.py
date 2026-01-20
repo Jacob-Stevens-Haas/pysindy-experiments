@@ -14,8 +14,8 @@ from .plotting import (
 )
 from .typing import ProbData, _BaseSINDy
 from .utils import (
-    FullSINDyTrialData,
     DynamicsTrialData,
+    FullSINDyTrialData,
     coeff_metrics,
     integration_metrics,
     make_model,
@@ -63,7 +63,6 @@ def add_forcing(
     return sum_of_terms
 
 
-
 p_duff = [0.2, 0.05, 1]
 p_lotka = [5, 1]
 p_ross = [0.2, 0.2, 5.7]
@@ -87,25 +86,6 @@ ode_setup = {
         ],
         "x0_center": 5 * np.ones(2),
         "nonnegative": True,
-    },
-    "ross": {
-        "rhsfunc": ps.utils.odes.rossler,
-        "input_features": ["x", "y", "z"],
-        "coeff_true": [
-            {"y": -1, "z": -1},
-            {"x": 1, "y": p_ross[0]},
-            {"z": p_ross[1], "z": -p_ross[2], "x z": 1},
-        ],
-    },
-    "lorenz": {
-        "rhsfunc": ps.utils.lorenz,
-        "input_features": ["x", "y", "z"],
-        "coeff_true": [
-            {"x": -10, "y": 10},
-            {"x": 28, "y": -1, "x z": -1},
-            {"z": -8 / 3, "x y": 1},
-        ],
-        "x0_center": np.array([0, 0, 15]),
     },
     "lorenz_sin_forced": {
         "rhsfunc": add_forcing(lambda t: [50 * np.sin(t), 0, 0], ps.utils.lorenz),
