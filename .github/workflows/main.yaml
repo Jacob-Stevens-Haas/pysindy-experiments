@@ -55,7 +55,7 @@ jobs:
     - name: Install dependencies
       run: |
           pip install --upgrade pip
-          pip install .[dev]
+          pip install .[dev,jax]
     - name: Test with pytest
       run: |
           coverage run --source=src/sindy_exp -m pytest tests  && coverage xml

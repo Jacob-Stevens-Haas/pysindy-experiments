@@ -11,6 +11,7 @@ import scipy
 import sympy as sp
 
 from ._dysts_to_sympy import dynsys_to_sympy
+from .odes import SHO, CubicHO, Hopf, Kinematics, LotkaVolterra, VanDerPol
 from .plotting import plot_training_data
 from .typing import Float1D, Float2D, ProbData
 
@@ -27,6 +28,16 @@ ODE_CLASSES = {
     klass.lower(): getattr(dysts.flows, klass)
     for klass in dysts.systems.get_attractor_list()
 }
+ODE_CLASSES.update(
+    {
+        "lotkavolterra": LotkaVolterra,
+        "sho": SHO,
+        "cubicho": CubicHO,
+        "hopf": Hopf,
+        "vanderpol": VanDerPol,
+        "kinematics": Kinematics,
+    }
+)
 
 
 def _sympy_expr_to_feat_coeff(sp_expr: list[sp.Expr]) -> list[dict[str, float]]:

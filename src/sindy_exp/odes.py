@@ -1,4 +1,4 @@
-from functools import partial
+from importlib import resources
 from logging import getLogger
 from typing import Callable, Optional, TypeVar, cast
 from warnings import warn
@@ -6,6 +6,7 @@ from warnings import warn
 import matplotlib.pyplot as plt
 import numpy as np
 import pysindy as ps
+from dysts.base import DynSys
 
 from .plotting import (
     compare_coefficient_plots,
@@ -37,6 +38,7 @@ metric_ordering = {
 T = TypeVar("T", bound=int)
 DType = TypeVar("DType", bound=np.dtype)
 MOD_LOG = getLogger(__name__)
+LOCAL_DYNAMICS_PATH = resources.files("sindy_exp").joinpath("addl_attractors.json")
 
 
 def add_forcing(
@@ -63,30 +65,106 @@ def add_forcing(
     return sum_of_terms
 
 
-p_duff = [0.2, 0.05, 1]
-p_lotka = [5, 1]
-p_ross = [0.2, 0.2, 5.7]
-p_hopf = [-0.05, 1, 1]
+class LotkaVolterra(DynSys):
+    """Lotka-Volterra (predator-prey) dynamical system."""
+
+    nonnegative = True
+
+    def __init__(self):
+        super().__init__(metadata_path=LOCAL_DYNAMICS_PATH)
+
+    @staticmethod
+    def _rhs(x, y, t: float, alpha, beta, gamma, delta) -> np.ndarray:
+        """LV dynamics
+
+        Args:
+            x: prey population
+            y: predator population
+            t: time (ignored, since autonomous)
+            alpha: prey growth rate
+            beta: predation rate
+            delta: predator reproduction rate
+            gamma: predator death rate
+        """
+        dxdt = alpha * x - beta * x * y
+        dydt = delta * x * y - gamma * y
+        return np.array([dxdt, dydt])
+
+
+class Hopf(DynSys):
+    """Hopf normal form dynamical system."""
+
+    def __init__(self):
+        super().__init__(metadata_path=LOCAL_DYNAMICS_PATH)
+
+    @staticmethod
+    def _rhs(x, y, t: float, mu, omega, A) -> np.ndarray:
+        dxdt = mu * x - omega * y - A * (x**3 + x * y**2)
+        dydt = omega * x + mu * y - A * (x**2 * y + y**3)
+        return np.array([dxdt, dydt])
+
+
+class SHO(DynSys):
+    """Linear damped simple harmonic oscillator"""
+
+    def __init__(self):
+        super().__init__(metadata_path=LOCAL_DYNAMICS_PATH)
+
+    @staticmethod
+    def _rhs(x, y, t: float, a, b, c, d) -> np.ndarray:
+        dxdt = a * x + b * y
+        dydt = c * x + d * y
+        return np.array([dxdt, dydt])
+
+
+class CubicHO(DynSys):
+    """Cubic damped harmonic oscillator."""
+
+    def __init__(self):
+        super().__init__(metadata_path=LOCAL_DYNAMICS_PATH)
+
+    @staticmethod
+    def _rhs(x, y, t: float, a, b, c, d) -> np.ndarray:
+        dxdt = a * x**3 + b * y**3
+        dydt = c * x**3 + d * y**3
+        return np.array([dxdt, dydt])
+
+
+class VanDerPol(DynSys):
+    """Van der Pol oscillator.
+
+    dx/dt = y
+    dy/dt = mu * (1 - x^2) * y - x
+    """
+
+    def __init__(self):
+        super().__init__(metadata_path=LOCAL_DYNAMICS_PATH)
+
+    @staticmethod
+    def _rhs(x, x_dot, t: float, mu) -> np.ndarray:
+        dxdt = x_dot
+        dx2dt2 = mu * (1 - x**2) * x_dot - x
+        return np.array([dxdt, dx2dt2])
+
+
+class Kinematics(DynSys):
+    """One-dimensional kinematics with constant acceleration.
+
+    dx/dt = v
+    dv/dt = a
+    """
+
+    def __init__(self):
+        super().__init__(metadata_path=LOCAL_DYNAMICS_PATH)
+
+    @staticmethod
+    def _rhs(x, v, t: float, a) -> np.ndarray:
+        dxdt = v
+        dvdt = a
+        return np.array([dxdt, dvdt])
+
 
 ode_setup = {
-    "duff": {
-        "rhsfunc": ps.utils.odes.duffing,
-        "input_features": ["x", "x'"],
-        "coeff_true": [
-            {"x'": 1},
-            {"x'": -p_duff[0], "x": -p_duff[1], "x^3": -p_duff[2]},
-        ],
-    },
-    "lv": {
-        "rhsfunc": partial(ps.utils.odes.lotka, p=p_lotka),
-        "input_features": ["x", "y"],
-        "coeff_true": [
-            {"x": p_lotka[0], "x y": -p_lotka[1]},
-            {"y": -2 * p_lotka[0], "x y": p_lotka[1]},
-        ],
-        "x0_center": 5 * np.ones(2),
-        "nonnegative": True,
-    },
     "lorenz_sin_forced": {
         "rhsfunc": add_forcing(lambda t: [50 * np.sin(t), 0, 0], ps.utils.lorenz),
         "input_features": ["x", "y", "z"],
@@ -96,55 +174,7 @@ ode_setup = {
             {"z": -8 / 3, "x y": 1},
         ],
         "x0_center": np.array([0, 0, 15]),
-    },
-    "hopf": {
-        "rhsfunc": ps.utils.hopf,
-        "input_features": ["x", "y"],
-        "coeff_true": [
-            {"x": p_hopf[0], "y": -p_hopf[1], "x^3": -p_hopf[2], "x y^2": -p_hopf[2]},
-            {"x": p_hopf[1], "y": p_hopf[0], "x^2 y": -p_hopf[2], "y^3": -p_hopf[2]},
-        ],
-    },
-    "sho": {
-        "rhsfunc": ps.utils.linear_damped_SHO,
-        "input_features": ["x", "y"],
-        "coeff_true": [
-            {"x": -0.1, "y": 2},
-            {"x": -2, "y": -0.1},
-        ],
-    },
-    "cubic_ho": {
-        "rhsfunc": ps.utils.cubic_damped_SHO,
-        "input_features": ["x", "y"],
-        "coeff_true": [
-            {"x^3": -0.1, "y^3": 2},
-            {"x^3": -2, "y^3": -0.1},
-        ],
-    },
-    "vdp": {
-        "rhsfunc": ps.utils.van_der_pol,
-        "input_features": ["x", "x'"],
-        "coeff_true": [
-            {"x'": 1},
-            {"x": -1, "x'": 0.5, "x^2 x'": -0.5},
-        ],
-    },
-    "kinematics": {
-        "rhsfunc": lambda t, x: [x[1], -1],
-        "input_features": ["x", "x'"],
-        "coeff_true": [
-            {"x'": 1},
-            {"1": -1},
-        ],
-    },
-    "lorenz_xy": {
-        "rhsfunc": ps.utils.lorenz,
-        "input_features": ["x", "y", "z"],
-        "coeff_true": [
-            {"x": -10, "y": 10},
-            {"x": 28, "y": -1},
-        ],
-    },
+    }
 }
 
 

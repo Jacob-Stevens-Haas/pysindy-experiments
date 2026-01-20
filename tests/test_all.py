@@ -2,6 +2,7 @@ import numpy as np
 import pysindy as ps
 import pytest
 
+from sindy_exp.data import gen_data
 from sindy_exp.typing import NestedDict
 from sindy_exp.utils import unionize_coeff_matrices
 
@@ -57,8 +58,13 @@ def test_unionize_coeff_matrices_strict():
     with pytest.raises(ValueError, match="True model and fit model"):
         unionize_coeff_matrices(model, (["x", "y"], coeff_true), True)
 
-def test_gen_data():
-    from sindy_exp.data import gen_data
 
-    data = gen_data("lorenz", noise_abs=0.01, seed=42)["data"]
+@pytest.mark.parametrize(
+    "rhs_name", ["lorenz", "rossler", "vanderpol", "sho", "cubicho", "kinematics"]
+)
+@pytest.mark.parametrize("array_namespace", ["numpy", "jax"])
+def test_gen_data(rhs_name, array_namespace):
+    data = gen_data(
+        rhs_name, t_end=0.1, noise_abs=0.01, seed=42, array_namespace=array_namespace
+    )["data"]
     assert data.x_train[0].shape == data.x_dot_test[0].shape

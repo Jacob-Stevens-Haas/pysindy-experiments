@@ -1,7 +1,7 @@
 from sindy_exp.data import gen_data
 
 data_dict = gen_data(
-    "valliselnino",
+    "hopf",
     seed=50,
     n_trajectories=1,
     ic_stdev=3,
@@ -9,3 +9,4 @@ data_dict = gen_data(
     display=True,
     array_namespace="jax",
 )
+print(data_dict["data"].input_features)
