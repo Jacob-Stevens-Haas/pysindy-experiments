@@ -1,4 +1,3 @@
-from math import ceil
 from typing import Optional
 
 import diffrax
@@ -7,14 +6,15 @@ import jax.numpy as jnp
 import sympy2jax
 from sympy import Expr, Symbol
 
+from .typing import ProbData
+
 jax.config.update("jax_enable_x64", True)
 
 
 def _gen_data_jax(
-    fun: tuple[list[Symbol], list[Expr]],
-    n_coord: int,
-    seed: int,
-    n_trajectories: int,
+    exprs: list[Expr],
+    input_features: list[Symbol],
+    seed: jax.Array,
     x0_center: jax.Array,
     ic_stdev: float,
     noise_abs: Optional[float],
@@ -22,23 +22,17 @@ def _gen_data_jax(
     nonnegative: bool,
     dt: float,
     t_end: float,
-) -> tuple[
-    float,
-    jax.Array,
-    list[jax.Array],
-    list[jax.Array],
-    list[jax.Array],
-    list[jax.Array],
-    list[jax.Array],
-    list[diffrax.Solution],
-]:
-    symbols = fun[0]
-    exprs = fun[1]
+) -> ProbData:
     rhstree = sympy2jax.SymbolicModule(exprs)
 
     def ode_sys(t, state, args):
         return jnp.asarray(
-            rhstree(**{str(x_sym): state_i for x_sym, state_i in zip(symbols, state)})
+            rhstree(
+                **{
+                    str(x_sym): state_i
+                    for x_sym, state_i in zip(input_features, state, strict=True)
+                }
+            )
         )
 
     term = diffrax.ODETerm(ode_sys)
@@ -46,95 +40,46 @@ def _gen_data_jax(
     save_at = diffrax.SaveAt(ts=jnp.arange(0, t_end, dt), dense=True)
 
     # Random initialization
-    key = jax.random.PRNGKey(seed)
-    key, subkey = jax.random.split(key)
+    key, subkey = jax.random.split(seed)
     t_train = jnp.arange(0, t_end, dt)
     if nonnegative:
         shape = ((x0_center + 1) / ic_stdev) ** 2
         scale = ic_stdev**2 / (x0_center + 1)
-        x0_train = jnp.array(
-            [
-                jax.random.gamma(subkey, k, shape=(n_trajectories,)) * theta
-                for k, theta in zip(shape, scale)
-            ]
+        x0 = jnp.array(
+            jax.random.gamma(subkey, k) * theta for k, theta in zip(shape, scale)
         ).T
-        key, subkey = jax.random.split(key)
-        x0_test = jnp.array(
-            [
-                jax.random.gamma(subkey, k, shape=(ceil(n_trajectories / 2),)) * theta
-                for k, theta in zip(shape, scale)
-            ]
-        ).T
+
     else:
-        x0_train = (
-            ic_stdev * jax.random.normal(subkey, (n_trajectories, n_coord)) + x0_center
-        )
-        key, subkey = jax.random.split(key)
-        x0_test = (
-            ic_stdev * jax.random.normal(subkey, (ceil(n_trajectories / 2), n_coord))
-            + x0_center
-        )
-    x_train_true: list[jax.Array] = []
-    x_test: list[jax.Array] = []
+        x0 = ic_stdev * jax.random.normal(subkey, (len(input_features),)) + x0_center
+    key, subkey = jax.random.split(key)
 
     # IVPs
-    solvers: list[diffrax.Solution] = []
-    for traj in range(n_trajectories):
-        y0_jax = x0_train[traj]
-        sol = diffrax.diffeqsolve(
-            term,
-            solver,
-            t0=0,
-            t1=t_end,
-            dt0=dt,  # Initial step size
-            y0=y0_jax,
-            args=(),
-            saveat=save_at,
-            max_steps=int(10 * (t_end - 0) / dt),
-        )
-        x_train_true.append(sol.ys)
-        solvers.append(sol)
-
-    for traj in range(ceil(n_trajectories / 2)):
-        y0_jax = x0_test[traj]
-        sol = diffrax.diffeqsolve(
-            term,
-            solver,
-            t0=0,
-            t1=t_end,
-            dt0=dt,  # Initial step size
-            y0=y0_jax,
-            args=(),
-            saveat=save_at,
-            max_steps=int(10 * (t_end - 0) / dt),
-        )
-        x_test.append(sol.ys)
-        solvers.append(sol)
+    sol = diffrax.diffeqsolve(
+        term,
+        solver,
+        t0=0,
+        t1=t_end,
+        dt0=dt,  # Initial step size
+        y0=x0,
+        args=(),
+        saveat=save_at,
+        max_steps=int(10 * (t_end - 0) / dt),
+    )
+    x_train_true: jax.Array = sol.ys  # type: ignore
 
     # Measurement noise
     if noise_abs is None:
         assert noise_rel is not None  # force type narrowing
-        noise_abs = float(
-            jnp.sqrt(_signal_avg_power(jnp.asarray(x_train_true))) * noise_rel
-        )
+        noise_abs = float(jnp.sqrt(_signal_avg_power(x_train_true)) * noise_rel)
 
-    x_train = [
-        x_i + jax.random.normal(key, x_i.shape) * noise_abs for x_i in x_train_true
-    ]
+    x_train = x_train_true + jax.random.normal(key, x_train_true.shape) * noise_abs
 
     # True Derivatives
-    x_dot_test = [ode_sys(0, x_i, None) for x_i in x_test]
-    x_train_true_dot = [ode_sys(0, x_i, None) for x_i in x_train_true]
+    x_train_true_dot = jnp.array([ode_sys(0, xi, None) for xi in x_train_true])
 
-    return (
-        dt,
-        t_train,
-        x_train,
-        x_test,
-        x_dot_test,
-        x_train_true,
-        x_train_true_dot,
-        solvers,
+    stringy_features = [sym.name for sym in input_features]
+    return ProbData(
+        dt, t_train, x_train, x_train_true, x_train_true_dot, stringy_features, sol
     )
 
 

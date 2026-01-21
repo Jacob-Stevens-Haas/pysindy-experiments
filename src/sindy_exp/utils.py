@@ -302,3 +302,22 @@ def simulate_test_data(model: ps.SINDy, dt: float, x_test: Float2D) -> SINDyTria
     # truncate if integration returns wrong number of points
     t_sim = cast(Float1D, t_test[: len(x_sim)])
     return {"t_sim": t_sim, "x_sim": x_sim, "t_test": t_test}
+
+
+def _drop_and_warn(arrs):
+    """Drop trajectories that blew up during simulation"""
+    maxlen = max(arr.shape[0] for arr in arrs)
+
+    def _alert_short(arr):
+        if arr.shape[0] < maxlen:
+            warn(message="Dropping simulation due to blow-up")
+            return False
+        return True
+
+    arrs = list(filter(_alert_short, arrs))
+    if len(arrs) == 0:
+        raise ValueError(
+            "Simulations failed due to blow-up.  System is too stiff for solver's"
+            " numerical tolerance"
+        )
+    return arrs

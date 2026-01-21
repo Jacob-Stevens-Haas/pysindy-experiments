@@ -1,5 +1,5 @@
 from collections import defaultdict
-from typing import Any, NamedTuple, Protocol, Self, TypeVar
+from typing import Any, NamedTuple, Optional, Protocol, Self, TypeVar
 
 import numpy as np
 from numpy.typing import NBitBase
@@ -38,16 +38,18 @@ class _BaseSINDy(Protocol):
 
 
 class ProbData(NamedTuple):
+    """Data bundle for a single trajectory.
+
+    Represents a trajectory's training data and associated metadata.
+    """
+
     dt: float
     t_train: Float1D
-    x_train: list[FloatND]
-    x_test: list[FloatND]
-    x_dot_test: list[FloatND]
-    x_train_true: list[FloatND]
-    x_train_true_dot: list[FloatND]
+    x_train: Float2D
+    x_train_true: Float2D
+    x_train_true_dot: Float2D
     input_features: list[str]
-    coeff_true: list[dict[str, float]]
-    integrator: Any
+    integrator: Optional[Any] = None  # diffrax.Solution
 
 
 class NestedDict(defaultdict):

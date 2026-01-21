@@ -38,19 +38,16 @@ class NoExperiment:
 
     @staticmethod
     def gen_data(*args: Any, **kwargs: Any) -> dict[str, Any]:
-        return {
-            "data": ProbData(
-                0,
-                BORING_ARRAY[0],
-                [BORING_ARRAY],
-                [BORING_ARRAY],
-                [BORING_ARRAY],
-                [BORING_ARRAY],
-                [BORING_ARRAY],
-                ["x"],
-                [{"x": 0}],
-            )
-        }
+        dummy = ProbData(
+            0.0,
+            BORING_ARRAY[0],
+            BORING_ARRAY,
+            BORING_ARRAY,
+            BORING_ARRAY,
+            ["x"],
+            None,
+        )
+        return {"data": {"trajectories": [dummy], "coeff_true": None}}
 
     @staticmethod
     def run(

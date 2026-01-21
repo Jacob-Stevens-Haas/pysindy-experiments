@@ -1,8 +1,6 @@
 from logging import getLogger
-from math import ceil
 from pathlib import Path
 from typing import Any, Callable, Optional, cast
-from warnings import warn
 
 import dysts.flows
 import dysts.systems
@@ -13,9 +11,11 @@ import sympy as sp
 from ._dysts_to_sympy import dynsys_to_sympy
 from .odes import SHO, CubicHO, Hopf, Kinematics, LotkaVolterra, VanDerPol
 from .plotting import plot_training_data
-from .typing import Float1D, Float2D, ProbData
+from .typing import Float1D, ProbData
 
 try:
+    import jax
+
     from ._diffrax_solver import _gen_data_jax
 except ImportError:
     raise
@@ -40,8 +40,8 @@ ODE_CLASSES.update(
 )
 
 
-def _sympy_expr_to_feat_coeff(sp_expr: list[sp.Expr]) -> list[dict[str, float]]:
-    expressions = []
+def _sympy_expr_to_feat_coeff(sp_expr: list[sp.Expr]) -> list[dict[sp.Expr, float]]:
+    expressions: list[dict[sp.Expr, float]] = []
 
     def kv_term(term: sp.Expr) -> tuple[sp.Expr, float]:
         if not isinstance(term, sp.Mul):
@@ -61,7 +61,7 @@ def _sympy_expr_to_feat_coeff(sp_expr: list[sp.Expr]) -> list[dict[str, float]]:
         return feat, coeff
 
     for exp in sp_expr:
-        expr_dict = {}
+        expr_dict: dict[sp.Expr, float] = {}
         if not isinstance(exp, sp.Add):
             feat, coeff = kv_term(exp)
             expr_dict[feat] = coeff
@@ -76,7 +76,7 @@ def _sympy_expr_to_feat_coeff(sp_expr: list[sp.Expr]) -> list[dict[str, float]]:
 
 def gen_data(
     system: str,
-    seed: Optional[int] = None,
+    seed: int,
     n_trajectories: int = 1,
     ic_stdev: float = 3,
     noise_abs: Optional[float] = None,
@@ -131,24 +131,24 @@ def gen_data(
         noise_abs = 0.1
 
     MOD_LOG.info(f"Generating {n_trajectories} trajectories of f{system}")
+    prob_data_list: list[ProbData] = []
     if array_namespace == "numpy":
-        input_features = [feat.name for feat in input_features]
-        dt, t_train, x_train, x_test, x_dot_test, x_train_true, x_train_true_dot = (
-            _gen_data(
+        feature_names = [feat.name for feat in input_features]
+        for _ in range(n_trajectories):
+            seed += 1
+            prob = _gen_data(
                 rhsfunc,
-                len(input_features),
+                feature_names,
                 seed,
                 x0_center=x0_center,
                 nonnegative=nonnegative,
-                n_trajectories=n_trajectories,
                 ic_stdev=ic_stdev,
                 noise_abs=noise_abs,
                 noise_rel=noise_rel,
                 dt=dt,
                 t_end=t_end,
             )
-        )
-        integrator = None
+            prob_data_list.append(prob)
     elif array_namespace == "jax":
         try:
             globals()["_gen_data_jax"]
@@ -157,49 +157,32 @@ def gen_data(
                 "jax data generation requested but diffrax or sympy2jax not"
                 " installed"
             )
-        (
-            dt,
-            t_train,
-            x_train,
-            x_test,
-            x_dot_test,
-            x_train_true,
-            x_train_true_dot,
-            integrator,
-        ) = _gen_data_jax(
-            (input_features, sp_expr),
-            len(input_features),
-            seed,
-            x0_center=x0_center,
-            nonnegative=nonnegative,
-            n_trajectories=n_trajectories,
-            ic_stdev=ic_stdev,
-            noise_abs=noise_abs,
-            noise_rel=noise_rel,
-            dt=dt,
-            t_end=t_end,
-        )
-        input_features = [feat.name for feat in input_features]
+        this_seed = jax.random.PRNGKey(seed)
+        for _ in range(n_trajectories):
+            this_seed, _ = jax.random.split(this_seed)
+            prob = _gen_data_jax(
+                sp_expr,
+                input_features,
+                this_seed,
+                x0_center=x0_center,
+                nonnegative=nonnegative,
+                ic_stdev=ic_stdev,
+                noise_abs=noise_abs,
+                noise_rel=noise_rel,
+                dt=dt,
+                t_end=t_end,
+            )
+            prob_data_list.append(prob)
     else:
         raise ValueError(
             f"Unknown array_namespace {array_namespace}.  Must be 'numpy' or 'jax'"
         )
-    if display:
-        figs = plot_training_data(x_train[0], x_train_true[0])
+    if display and prob_data_list:
+        sample = prob_data_list[0]
+        figs = plot_training_data(sample.x_train, sample.x_train_true)
         figs[0].suptitle("Sample Trajectory")
     return {
-        "data": ProbData(
-            dt,
-            t_train,
-            x_train,
-            x_test,
-            x_dot_test,
-            x_train_true,
-            x_train_true_dot,
-            input_features,
-            coeff_true,
-            integrator,
-        ),
+        "data": {"trajectories": prob_data_list, "coeff_true": coeff_true},
         "main": f"{n_trajectories} trajectories of {rhsfunc}",
         "metrics": {"rel_noise": noise_rel, "abs_noise": noise_abs},
     }
@@ -207,9 +190,8 @@ def gen_data(
 
 def _gen_data(
     rhs_func: Callable,
-    n_coord: int,
+    input_features: list[str],
     seed: Optional[int],
-    n_trajectories: int,
     x0_center: Float1D,
     ic_stdev: float,
     noise_abs: Optional[float],
@@ -217,94 +199,33 @@ def _gen_data(
     nonnegative: bool,
     dt: float,
     t_end: float,
-) -> tuple[
-    float,
-    Float1D,
-    list[Float2D],
-    list[Float2D],
-    list[Float2D],
-    list[Float2D],
-    list[Float2D],
-]:
+) -> ProbData:
     rng = np.random.default_rng(seed)
     t_train = np.arange(0, t_end, dt)
     t_train_span = (t_train[0], t_train[-1])
     if nonnegative:
         shape = ((x0_center + 1) / ic_stdev) ** 2
         scale = ic_stdev**2 / (x0_center + 1)
-        x0_train = np.array(
-            [rng.gamma(k, theta, n_trajectories) for k, theta in zip(shape, scale)]
-        ).T
-        x0_test = np.array(
-            [
-                rng.gamma(k, theta, ceil(n_trajectories / 2))
-                for k, theta in zip(shape, scale)
-            ]
-        ).T
+        x0 = np.array([rng.gamma(k, theta) for k, theta in zip(shape, scale)])
     else:
-        x0_train = ic_stdev * rng.standard_normal((n_trajectories, n_coord)) + x0_center
-        x0_test = (
-            ic_stdev * rng.standard_normal((ceil(n_trajectories / 2), n_coord))
-            + x0_center
-        )
-    x_train = []
-    for traj in range(n_trajectories):
-        x_train.append(
-            scipy.integrate.solve_ivp(
-                rhs_func,
-                t_train_span,
-                x0_train[traj, :],
-                t_eval=t_train,
-                **INTEGRATOR_KEYWORDS,
-            ).y.T
-        )
+        x0 = ic_stdev * rng.standard_normal(len(input_features)) + x0_center
+    x_train = scipy.integrate.solve_ivp(
+        rhs_func,
+        t_train_span,
+        x0,
+        t_eval=t_train,
+        **INTEGRATOR_KEYWORDS,
+    ).y.T
 
-    def _drop_and_warn(arrs):
-        maxlen = max(arr.shape[0] for arr in arrs)
-
-        def _alert_short(arr):
-            if arr.shape[0] < maxlen:
-                warn(message="Dropping simulation due to blow-up")
-                return False
-            return True
-
-        arrs = list(filter(_alert_short, arrs))
-        if len(arrs) == 0:
-            raise ValueError(
-                "Simulations failed due to blow-up.  System is too stiff for solver's"
-                " numerical tolerance"
-            )
-        return arrs
-
-    x_train = _drop_and_warn(x_train)
-    x_train = np.stack(x_train)
-    x_test = []
-    for traj in range(ceil(n_trajectories / 2)):
-        x_test.append(
-            scipy.integrate.solve_ivp(
-                rhs_func,
-                t_train_span,
-                x0_test[traj, :],
-                t_eval=t_train,
-                **INTEGRATOR_KEYWORDS,
-            ).y.T
-        )
-    x_test = _drop_and_warn(x_test)
-    x_test = np.array(x_test)
-    x_dot_test = np.array([[rhs_func(0, xij) for xij in xi] for xi in x_test])
     x_train_true = np.copy(x_train)
-    x_train_true_dot = np.array(
-        [[rhs_func(0, xij) for xij in xi] for xi in x_train_true]
-    )
+    x_train_true_dot = np.array([rhs_func(0, xi) for xi in x_train_true])
     if noise_rel is not None:
-        noise_abs = np.sqrt(_signal_avg_power(x_test) * noise_rel)
+        noise_abs = np.sqrt(_signal_avg_power(x_train) * noise_rel)
     x_train = x_train + cast(float, noise_abs) * rng.standard_normal(x_train.shape)
-    x_train = list(x_train)
-    x_test = list(x_test)
-    x_dot_test = list(x_dot_test)
-    x_train_true = list(x_train_true)
-    x_train_true_dot = list(x_train_true_dot)
-    return dt, t_train, x_train, x_test, x_dot_test, x_train_true, x_train_true_dot
+
+    return ProbData(
+        dt, t_train, x_train, x_train_true, x_train_true_dot, input_features
+    )
 
 
 def _max_amplitude(signal: np.ndarray, axis: int) -> float:
