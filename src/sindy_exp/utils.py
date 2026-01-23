@@ -1,44 +1,96 @@
 import logging
-import re
+from dataclasses import dataclass
 from itertools import chain
-from typing import Annotated, TypedDict, cast
+from typing import cast
 from warnings import warn
 
 import numpy as np
 import pysindy as ps
 import sklearn
 import sklearn.metrics
-from numpy.typing import NDArray
+import sympy as sp
+from sympy.parsing.sympy_parser import convert_xor, parse_expr, standard_transformations
 
-from .typing import Float1D, Float2D, FloatND, _BaseSINDy
+from .typing import Float1D, Float2D, FloatND, ProbData, _BaseSINDy
 
 logger = logging.getLogger(__name__)
 
 
-class DynamicsTrialData(TypedDict):
-    dt: float
-    coeff_true: Annotated[Float2D, "(n_coord, n_features)"]
-    coeff_fit: Annotated[Float2D, "(n_coord, n_features)"]
-    feature_names: Annotated[list[str], "length=n_features"]
-    input_features: Annotated[list[str], "length=n_coord"]
-    t_train: Float1D
-    x_train: np.ndarray
-    x_true: np.ndarray
-    smooth_train: np.ndarray
-    x_test: np.ndarray
-    x_dot_test: np.ndarray
-    model: ps.SINDy
+@dataclass
+class DynamicsTrialData:
+    trajectories: list[ProbData]
+    true_equations: list[dict[sp.Expr, float]]
+    sindy_equations: list[dict[sp.Expr, float]]
+    model: _BaseSINDy
+    input_features: list[str]
+    smooth_train: list[np.ndarray]
 
 
-class SINDyTrialUpdate(TypedDict):
+def _sympy_expr_to_feat_coeff(sp_expr: list[sp.Expr]) -> list[dict[sp.Expr, float]]:
+    """Convert symbolic rhs expressions into feature/coeff dictionaries.
+
+    Each expression is assumed to be a sum of terms; each term is either a
+    simple SymPy expression or a product of a numeric coefficient and a
+    feature expression. The output is a list of dictionaries, one per
+    expression, mapping feature expressions to their numeric coefficients.
+    """
+
+    expressions: list[dict[sp.Expr, float]] = []
+
+    def kv_term(term: sp.Expr) -> tuple[sp.Expr, float]:
+        if not isinstance(term, sp.Mul):
+            coeff = 1.0
+            feat = term
+        else:
+            try:
+                coeff = float(term.args[0])
+                args = term.args[1:]
+            except TypeError:
+                coeff = 1.0
+                args = term.args
+            if len(args) == 1:
+                feat = args[0]
+            else:
+                feat = sp.Mul(*args)
+        return feat, coeff
+
+    for exp in sp_expr:
+        expr_dict: dict[sp.Expr, float] = {}
+        if not isinstance(exp, sp.Add):
+            feat, coeff = kv_term(exp)
+            expr_dict[feat] = coeff
+        else:
+            for term in exp.args:
+                feat, coeff = kv_term(term)
+                expr_dict[feat] = coeff
+
+        expressions.append(expr_dict)
+    return expressions
+
+
+def sindy_equations_to_sympy(model: _BaseSINDy) -> list[sp.Expr]:
+    """Convert a SINDy model's string equations to SymPy expressions.
+
+    Uses sympy's parser with ``convert_xor`` so that terms like ``x^2`` are
+    interpreted as powers rather than bitwise XOR.
+    """
+
+    # Use a fixed precision for reproducible string equations.
+    eq_strings = model.equations(10)  # type: ignore[call-arg]
+    transformations = standard_transformations + (convert_xor,)
+    return [parse_expr(eq, transformations=transformations) for eq in eq_strings]
+
+
+@dataclass
+class SINDyTrialUpdate:
     t_sim: Float1D
     t_test: Float1D
     x_sim: FloatND
 
 
-class FullSINDyTrialData(DynamicsTrialData):
-    t_sim: Float1D
-    x_sim: np.ndarray
+@dataclass
+class FullDynamicsTrialData(DynamicsTrialData):
+    sims: list[SINDyTrialUpdate]
 
 
 def diff_lookup(kind):
@@ -85,8 +137,42 @@ def opt_lookup(kind):
         raise ValueError
 
 
-def coeff_metrics(coefficients, coeff_true):
-    metrics = {}
+def coeff_metrics(
+    coeff_est_dicts: list[dict[sp.Expr, float]],
+    coeff_true_dicts: list[dict[sp.Expr, float]],
+) -> dict[str, float | np.floating]:
+    """Compute coefficient metrics from aligned coefficient dictionaries.
+
+    Both arguments are expected to be lists of coefficient dictionaries sharing
+    the same SymPy-expression keys, such as the output of ``unionize_coeff_dicts``.
+    """
+
+    if not coeff_true_dicts or not coeff_est_dicts:
+        raise ValueError("Coefficient dictionaries must be non-empty")
+    if len(coeff_true_dicts) != len(coeff_est_dicts):
+        raise ValueError("True and estimated coefficients must have same length")
+
+    features = list(coeff_true_dicts[0].keys())
+    n_coord = len(coeff_true_dicts)
+    n_feat = len(features)
+
+    coeff_true = np.zeros((n_coord, n_feat), dtype=float)
+    coefficients = np.zeros_like(coeff_true)
+
+    for row_ind, (true_row, est_row) in enumerate(
+        zip(coeff_true_dicts, coeff_est_dicts)
+    ):
+        if set(true_row.keys()) != set(features) or set(est_row.keys()) != set(
+            features
+        ):
+            raise ValueError(
+                "Coefficient dictionaries are not aligned across coordinates"
+            )
+        for col_ind, feat in enumerate(features):
+            coeff_true[row_ind, col_ind] = true_row[feat]
+            coefficients[row_ind, col_ind] = est_row[feat]
+
+    metrics: dict[str, float | np.floating] = {}
     metrics["coeff_precision"] = sklearn.metrics.precision_score(
         coeff_true.flatten() != 0, coefficients.flatten() != 0
     )
@@ -135,92 +221,48 @@ def integration_metrics(model: _BaseSINDy, x_test, t_train, x_dot_test):
     return metrics
 
 
-def unionize_coeff_matrices(
+def unionize_coeff_dicts(
     model: _BaseSINDy,
-    model_true: tuple[list[str], list[dict[str, float]]] | list[dict[str, float]],
-    strict: bool = False,
-) -> tuple[NDArray[np.float64], NDArray[np.float64], list[str]]:
-    """Reformat true coefficients and coefficient matrix compatibly
+    true_equations: list[dict[sp.Expr, float]],
+) -> tuple[list[dict[sp.Expr, float]], list[dict[sp.Expr, float]]]:
+    """Align true and estimated coefficient dictionaries using SymPy expressions.
 
-    In order to calculate accuracy metrics between true and estimated
-    coefficients, this function compares the names of true coefficients
-    and a the fitted model's features in order to create comparable
-    (i.e. non-ragged) true and estimated coefficient matrices.  In
-    a word, it stacks the correct coefficient matrix and the estimated
-    coefficient matrix in a matrix that represents the union of true
-    features and modeled features.
+    This function compares the symbolic features present in the true
+    equations and in the fitted SINDy model's equations and returns two
+    lists of coefficient dictionaries with identical feature keys. Missing
+    features in either source are filled with a coefficient of 0.0.
 
-    Arguments:
-        model: fitted model
-        model_true: A tuple of (a) a list of input feature names, and
-            (b) a list of dicts of format function_name: coefficient,
-            one dict for each modeled coordinate/target.  The old format
-            of passing one
-        strict:
-            whether to attempt to translate the model's features into the
-            input variable names in the true model.
+    Args:
+        model: Fitted SINDy-like model.
+        true_equations: List of coefficient dictionaries mapping SymPy
+            expressions to true coefficients, one dict per state coordinate.
+
     Returns:
-        Tuple of true coefficient matrix, estimated coefficient matrix,
-        and combined feature names
-
-    Warning:
-        Does not disambiguate between commutatively equivalent function
-        names such as 'x z' and 'z x' or 'x^2' and 'x x'.
-
-    Warning:
-        In non-strict mode, when different input variables are detected in the
-            SINDy model and in the true model, will attempt to translate true
-            features to model inputs, e.g. ``x^2`` -> ``x0^2``.  This is a
-            text replacement, not a lexical replacement, so there are edge cases
-            where translation fails.  Input variables are sorted alphabetically.
+        A pair ``(true_aligned, est_aligned)`` where each element is a list
+        of coefficient dictionaries ``dict[sp.Expr, float]`` with identical
+        keys across all coordinates.
     """
-    inputs_model = cast(list[str], model.feature_names)
-    if isinstance(model_true, list):
-        warn(
-            "Passing coeff_true as merely the list of functions is deprecated. "
-            " It is now required to pass a tuple of system coordinate variables"
-            " as well as the list of functions.",
-            DeprecationWarning,
+
+    est_exprs = sindy_equations_to_sympy(model)
+    est_equations = _sympy_expr_to_feat_coeff(est_exprs)
+
+    if len(est_equations) != len(true_equations):
+        raise ValueError(
+            "True equations and estimated equations must have"
+            " the same number of coordinates"
         )
-        in_funcs = set.union(*[set(d.keys()) for d in model_true])
 
-        def extract_vars(fname: str) -> set[str]:
-            # split on ops like *,^, only accept x, x2, from x * x2 ^ 2, but need x'
-            return {
-                var for var in re.split(r"[^\w']", fname) if re.match(r"[^\d]", var)
-            }
+    true_aligned: list[dict[sp.Expr, float]] = []
+    est_aligned: list[dict[sp.Expr, float]] = []
 
-        inputs_set = set.union(*[extract_vars(fname) for fname in in_funcs])
-        inputs_true = sorted(inputs_set)
-        coeff_true = model_true
-    else:
-        inputs_true, coeff_true = model_true
-    model_features = model.get_feature_names()
-    true_features = [set(coeffs.keys()) for coeffs in coeff_true]
-    if inputs_true != inputs_model:
-        if strict:
-            raise ValueError(
-                "True model and fit model have different input variable names"
-            )
-        mapper = dict(zip(inputs_model, inputs_true, strict=True))
-        translated_features: list[str] = []
-        for feat in model_features:
-            for k, v in mapper.items():
-                feat = feat.replace(k, v)
-            translated_features.append(feat)
-        model_features = translated_features
+    all_features = {
+        expr for eq in chain(true_equations, est_equations) for expr in eq.keys()
+    }
+    for true_eq, est_eq in zip(true_equations, est_equations):
+        true_aligned.append({feat: true_eq.get(feat, 0.0) for feat in all_features})
+        est_aligned.append({feat: est_eq.get(feat, 0.0) for feat in all_features})
 
-    unmodeled_features = set(chain.from_iterable(true_features)) - set(model_features)
-    model_features.extend(list(unmodeled_features))
-    est_coeff_mat = model.coefficients()
-    new_est_coeff = np.zeros((est_coeff_mat.shape[0], len(model_features)))
-    new_est_coeff[:, : est_coeff_mat.shape[1]] = est_coeff_mat
-    true_coeff_mat = np.zeros_like(new_est_coeff)
-    for row, terms in enumerate(coeff_true):
-        for term, coeff in terms.items():
-            true_coeff_mat[row, model_features.index(term)] = coeff
-
-    return true_coeff_mat, new_est_coeff, model_features
+    return true_aligned, est_aligned
 
 
 def make_model(
@@ -268,7 +310,9 @@ def make_model(
     )
 
 
-def simulate_test_data(model: ps.SINDy, dt: float, x_test: Float2D) -> SINDyTrialUpdate:
+def simulate_test_data(
+    model: _BaseSINDy, dt: float, x_test: Float2D
+) -> SINDyTrialUpdate:
     """Add simulation data to grid_data
 
     This includes the t_sim and x_sim keys.  Does not mutate argument.
@@ -301,7 +345,7 @@ def simulate_test_data(model: ps.SINDy, dt: float, x_test: Float2D) -> SINDyTria
         x_sim = np.zeros_like(x_test)
     # truncate if integration returns wrong number of points
     t_sim = cast(Float1D, t_test[: len(x_sim)])
-    return {"t_sim": t_sim, "x_sim": x_sim, "t_test": t_test}
+    return SINDyTrialUpdate(t_sim=t_sim, t_test=t_test, x_sim=x_sim)
 
 
 def _drop_and_warn(arrs):

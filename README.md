@@ -44,9 +44,11 @@ Perhaps of most significance are the SINDy diagnostic plotting, which can be use
 your own experiments or in your notebooks.  `sindy_exp.plotting` has a variety
 of functions for creating diagnostics of fitted SINDy models:
 
-* `sindy_exp.plotting.compare_coefficient_plots()` and its cousin,
-  `sindy_exp.utils.unionize_coeff_matrices()`, which is used to align coefficient matrices from
-  models with different features.
+* `sindy_exp.plotting.compare_coefficient_plots()` and its cousins,
+  `sindy_exp.utils.unionize_coeff_dicts()` and
+  `sindy_exp.plotting.compare_coefficient_plots_from_dicts()`, which are used
+  to align and visualize coefficient dictionaries from models with different
+  features.
 * `sindy_exp.utils.coeff_metrics()` and `sindy_exp.utils.pred_metrics()`
 * `sindy_exp.plotting.plot_training_data()`
 * `sindy_exp.plotting.plot_test_trajectories()`

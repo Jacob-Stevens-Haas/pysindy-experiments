@@ -1,10 +1,21 @@
 from collections import defaultdict
-from typing import Any, NamedTuple, Optional, Protocol, Self, TypeVar
+from typing import (
+    Any,
+    Callable,
+    Literal,
+    NamedTuple,
+    Optional,
+    Protocol,
+    Self,
+    TypeVar,
+    overload,
+)
 
 import numpy as np
 from numpy.typing import NBitBase
+from sympy import Expr
 
-NpFlt = np.dtype[np.floating[NBitBase]]
+NpFlt = np.dtype[np.floating]
 Float1D = np.ndarray[tuple[int], NpFlt]
 Float2D = np.ndarray[tuple[int, int], NpFlt]
 Shape = TypeVar("Shape", bound=tuple[int, ...])
@@ -23,14 +34,27 @@ class _BaseSINDy(Protocol):
     def simulate(self, x0: np.ndarray, t: np.ndarray) -> np.ndarray: ...
 
     def score(
-        self, x: TrajectoryType, t: TrajectoryType, x_dot: TrajectoryType
+        self,
+        x: TrajectoryType,
+        t: TrajectoryType,
+        x_dot: TrajectoryType,
+        metric: Callable,
     ) -> float: ...
 
     def predict(self, x: np.ndarray, u: None | np.ndarray) -> np.ndarray: ...
 
     def coefficients(self): ...
 
-    def equations(self, precision: int) -> list[str]: ...
+    @overload
+    def equations(self) -> list[str]: ...
+
+    @overload
+    def equations(self, precision: int, fmt: Literal["str"]) -> list[str]: ...
+
+    @overload
+    def equations(
+        self, precision: int, fmt: Literal["sympy"]
+    ) -> list[dict[Expr, float]]: ...
 
     def print(self, precision: int, **kwargs) -> None: ...
 

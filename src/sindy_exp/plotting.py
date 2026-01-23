@@ -1,11 +1,13 @@
-from dataclasses import dataclass, field
-from typing import Annotated, Any, Callable, Literal, Optional, Sequence
+from dataclasses import dataclass
+from typing import Annotated, Optional, Sequence
+from warnings import warn
 
 import matplotlib as mpl
 import matplotlib.pyplot as plt
 import numpy as np
 import scipy
 import seaborn as sns
+import sympy as sp
 from matplotlib.axes import Axes
 from matplotlib.figure import Figure
 from matplotlib.typing import ColorType
@@ -104,22 +106,41 @@ def plot_coefficients(
     return ax
 
 
-def compare_coefficient_plots(
+def _coeff_dicts_to_matrix(
+    coeffs: Sequence[dict[sp.Expr, float]],
+) -> tuple[np.ndarray, list[str]]:
+    """Convert a list of coefficient dictionaries to a dense matrix.
+
+    The input is a list of dictionaries mapping feature identifiers (
+    SymPy expressions) to coefficients. All dictionaries are assumed to
+    correspond to different coordinates of the same system. This helper builds
+    a consistent feature ordering across coordinates and returns a numeric
+    matrix along with the stringified feature names.
+    """
+
+    if not coeffs:
+        raise ValueError("No coefficient dictionaries provided.")
+
+    features: list[sp.Expr] = sorted({key for d in coeffs for key in d.keys()}, key=str)
+
+    mat = np.zeros((len(coeffs), len(features)), dtype=float)
+    for row, d in enumerate(coeffs):
+        for col, feat in enumerate(features):
+            mat[row, col] = d[feat]
+
+    feature_names = [str(f) for f in features]
+    return mat, feature_names
+
+
+def _compare_coefficient_plots_impl(
     coefficients_est: Annotated[np.ndarray, "(n_coord, n_feat)"],
     coefficients_true: Annotated[np.ndarray, "(n_coord, n_feat)"],
     input_features: Sequence[str],
     feature_names: Sequence[str],
     scaling: bool = True,
     axs: Optional[Sequence[Axes]] = None,
-):
-    """Create plots of true and estimated coefficients.
-
-    Args:
-        scaling: Whether to scale coefficients so that magnitude of largest to
-            smallest (in absolute value) is less than or equal to ten.
-        axs: A sequence of axes of at least length two.  Plots are added to the
-            first two axes in the list
-    """
+) -> None:
+    """Internal implementation for coefficient comparison heatmaps."""
     n_cols = len(coefficients_est)
 
     # helps boost the color of small coefficients.  Maybe log is better?
@@ -166,6 +187,78 @@ def compare_coefficient_plots(
 
         axs[0].set_title("True Coefficients", rotation=45)
         axs[1].set_title("Est. Coefficients", rotation=45)
+
+
+def compare_coefficient_plots(
+    coefficients_est: Annotated[np.ndarray, "(n_coord, n_feat)"],
+    coefficients_true: Annotated[np.ndarray, "(n_coord, n_feat)"],
+    input_features: Sequence[str],
+    feature_names: Sequence[str],
+    scaling: bool = True,
+    axs: Optional[Sequence[Axes]] = None,
+) -> None:
+    """Create plots of true and estimated coefficients.
+
+    Deprecated:
+        Use :func:`compare_coefficient_plots_from_dicts` with coefficient
+        dictionaries instead. This function will be removed in a future
+        release.
+    """
+
+    warn(
+        "compare_coefficient_plots is deprecated; use "
+        "compare_coefficient_plots_from_dicts with coefficient dictionaries instead.",
+        DeprecationWarning,
+        stacklevel=2,
+    )
+
+    _compare_coefficient_plots_impl(
+        coefficients_est,
+        coefficients_true,
+        input_features=input_features,
+        feature_names=feature_names,
+        scaling=scaling,
+        axs=axs,
+    )
+
+
+def compare_coefficient_plots_from_dicts(
+    coefficients_est: Sequence[dict[sp.Expr, float]],
+    coefficients_true: Sequence[dict[sp.Expr, float]],
+    input_features: Sequence[str],
+    feature_names: Sequence[str] | None = None,
+    scaling: bool = True,
+    axs: Optional[Sequence[Axes]] = None,
+):
+    """Wrapper to compare coefficients given as dictionaries.
+
+    Converts aligned coefficient dictionaries into dense matrices and then
+    delegates to :func:`compare_coefficient_plots` for plotting.
+
+    This assumes that the coefficient dictionaries are aligned, i.e., that they
+    contain the same keys across all coordinates, as produced by
+    ``unionize_coeff_dicts()``.
+    """
+
+    true_mat, inferred_feature_names = _coeff_dicts_to_matrix(coefficients_true)
+    est_mat, est_feature_names = _coeff_dicts_to_matrix(coefficients_est)
+
+    if true_mat.shape != est_mat.shape:
+        raise ValueError("True and estimated coefficient shapes do not match")
+
+    if inferred_feature_names != est_feature_names:
+        raise ValueError(
+            "Feature names inferred from true and estimated coefficients do not match"
+        )
+
+    _compare_coefficient_plots_impl(
+        est_mat,
+        true_mat,
+        input_features=input_features,
+        feature_names=inferred_feature_names,
+        scaling=scaling,
+        axs=axs,
+    )
 
 
 def _plot_training_trajectory(
@@ -248,41 +341,41 @@ def plot_training_data(
     x_train: np.ndarray, x_true: np.ndarray, x_smooth: np.ndarray | None = None
 ) -> tuple[Figure, Figure]:
     """Plot training data (and smoothed training data, if different)."""
-    fig_3d = plt.figure(figsize=(12, 6))
+    fig_composite = plt.figure(figsize=(12, 6))
     if x_train.shape[-1] == 2:
-        ax0 = fig_3d.add_subplot(1, 2, 1)
+        ax_traj = fig_composite.add_subplot(1, 2, 1)
         coord_names = ("x", "y")
     elif x_train.shape[-1] == 3:
-        ax0 = fig_3d.add_subplot(1, 2, 1, projection="3d")
+        ax_traj = fig_composite.add_subplot(1, 2, 1, projection="3d")
         coord_names = ("x", "y", "z")
     else:
         raise ValueError("Too many or too few coordinates to plot")
-    _plot_training_trajectory(ax0, x_train, x_true, x_smooth)
-    ax0.legend()
-    ax0.set(title="Training data")
-    ax1 = fig_3d.add_subplot(1, 2, 2)
-    ax1.loglog(
+    _plot_training_trajectory(ax_traj, x_train, x_true, x_smooth)
+    ax_traj.legend()
+    ax_traj.set(title="Training data")
+    ax_psd = fig_composite.add_subplot(1, 2, 2)
+    ax_psd.loglog(
         np.abs(scipy.fft.rfft(x_train, axis=0)) / np.sqrt(len(x_train)),
         color=COLOR.MEAS,
     )
-    ax1.loglog(
+    ax_psd.loglog(
         np.abs(scipy.fft.rfft(x_true, axis=0)) / np.sqrt(len(x_true)), color=COLOR.TRUE
     )
-    ax1.legend(coord_names)
-    ax1.set(title="Training Data Absolute Spectral Density")
-    ax1.set(xlabel="Wavenumber")
-    ax1.set(ylabel="Magnitude")
+    ax_psd.legend(coord_names)
+    ax_psd.set(title="Training Data Absolute Spectral Density")
+    ax_psd.set(xlabel="Wavenumber")
+    ax_psd.set(ylabel="Magnitude")
 
     n_coord = x_true.shape[-1]
-    fig_coord = plt.figure(figsize=(n_coord * 4, 6))
+    fig_by_coord_1d = plt.figure(figsize=(n_coord * 4, 6))
     for coord_ind in range(n_coord):
-        ax = fig_coord.add_subplot(n_coord, 1, coord_ind + 1)
+        ax = fig_by_coord_1d.add_subplot(n_coord, 1, coord_ind + 1)
         ax.set_title(coord_names[coord_ind])
         plot_training_1d(ax, coord_ind, x_train, x_true, x_smooth)
 
-    ax.legend()
+    fig_by_coord_1d.axes[-1].legend()
 
-    return fig_3d, fig_coord
+    return fig_composite, fig_by_coord_1d
 
 
 def plot_training_1d(
@@ -351,9 +444,13 @@ def _plot_test_sim_data_3d(
         ax.set(xticks=[], yticks=[], zticks=[])
 
 
-def plot_test_trajectories(
-    x_test: np.ndarray, x_sim: np.ndarray, t_test: np.ndarray, t_sim: np.ndarray
-) -> None:
+def plot_test_trajectory(
+    x_test: np.ndarray,
+    x_sim: np.ndarray,
+    t_test: np.ndarray,
+    t_sim: np.ndarray,
+    figs: Optional[tuple[Figure, Figure]] = None,
+) -> tuple[Figure, Figure]:
     """Plot a test trajectory
 
     Args:
@@ -362,24 +459,39 @@ def plot_test_trajectories(
         dt: the time interval in test data
 
     Returns:
-        A dict with two keys, "t_sim" (the simulation times) and
-    "x_sim" (the simulated trajectory)
+        The sequence of axes used for the single-dimension time-series plots.
+        If ``axs`` is provided, the same sequence is returned.
     """
-    _, axs = plt.subplots(x_test.shape[1], 1, sharex=True, figsize=(7, 9))
-    plt.suptitle("Test Trajectories by Dimension")
-    plot_test_sim_data_1d_panel(axs, x_test, x_sim, t_test, t_sim)
-    axs[-1].legend()
-
-    plt.suptitle("Full Test Trajectories")
-    if x_test.shape[1] == 2:
-        _, axs = plt.subplots(1, 2, figsize=(10, 4.5))
-        _plot_test_sim_data_2d(axs, x_test, x_sim)
-    elif x_test.shape[1] == 3:
-        _, axs = plt.subplots(1, 2, figsize=(10, 4.5), subplot_kw={"projection": "3d"})
-        _plot_test_sim_data_3d(axs[0], x_test, "True Trajectory", "k")
-        _plot_test_sim_data_3d(axs[1], x_sim, "Simulation", "r--")
-
+    if not figs:
+        fig1, axs1 = plt.subplots(x_test.shape[1], 1, sharex=True, figsize=(7, 9))
+        if x_test.shape[1] == 2:
+            fig2, axs2 = plt.subplots(1, 2, figsize=(10, 4.5))
+            _plot_test_sim_data_2d(axs2, x_test, x_sim)
+        elif x_test.shape[1] == 3:
+            fig2, axs2 = plt.subplots(
+                1, 2, figsize=(10, 4.5), subplot_kw={"projection": "3d"}
+            )
+            _plot_test_sim_data_3d(axs2[0], x_test, "True Trajectory", "k")
+            _plot_test_sim_data_3d(axs2[1], x_sim, "Simulation", "r--")
+        else:
+            raise ValueError("Can only plot 2d or 3d data.")
     else:
-        raise ValueError("Can only plot 2d or 3d data.")
-    axs[0].set(title="true trajectory")
-    axs[1].set(title="model simulation")
+        fig1, fig2 = figs
+        axs1 = fig1.axes
+        axs2 = fig2.axes
+
+    assert isinstance(axs1, list)
+    assert isinstance(axs2, list)
+    plot_test_sim_data_1d_panel(axs1, x_test, x_sim, t_test, t_sim)
+    axs1[-1].legend()
+    if x_test.shape[1] == 2:
+        _plot_test_sim_data_2d(axs2, x_test, x_sim)
+    elif x_test.shape[1] == 3:
+        _plot_test_sim_data_3d(axs2[0], x_test, "True Trajectory", "k")
+        _plot_test_sim_data_3d(axs2[1], x_sim, "Simulation", "r--")
+    if not figs:
+        fig1.suptitle("Test Trajectories by Dimension")
+        fig2.suptitle("Full Test Trajectories")
+        axs2[0].set(title="true trajectory")
+        axs2[1].set(title="model simulation")
+    return fig1, fig2

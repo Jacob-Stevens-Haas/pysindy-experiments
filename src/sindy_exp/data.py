@@ -6,12 +6,12 @@ import dysts.flows
 import dysts.systems
 import numpy as np
 import scipy
-import sympy as sp
 
 from ._dysts_to_sympy import dynsys_to_sympy
 from .odes import SHO, CubicHO, Hopf, Kinematics, LotkaVolterra, VanDerPol
 from .plotting import plot_training_data
 from .typing import Float1D, ProbData
+from .utils import _sympy_expr_to_feat_coeff
 
 try:
     import jax
@@ -38,40 +38,6 @@ ODE_CLASSES.update(
         "kinematics": Kinematics,
     }
 )
-
-
-def _sympy_expr_to_feat_coeff(sp_expr: list[sp.Expr]) -> list[dict[sp.Expr, float]]:
-    expressions: list[dict[sp.Expr, float]] = []
-
-    def kv_term(term: sp.Expr) -> tuple[sp.Expr, float]:
-        if not isinstance(term, sp.Mul):
-            coeff = 1.0
-            feat = term
-        else:
-            try:
-                coeff = float(term.args[0])
-                args = term.args[1:]
-            except TypeError:
-                coeff = 1.0
-                args = term.args
-            if len(args) == 1:
-                feat = args[0]
-            else:
-                feat = sp.Mul(*args)
-        return feat, coeff
-
-    for exp in sp_expr:
-        expr_dict: dict[sp.Expr, float] = {}
-        if not isinstance(exp, sp.Add):
-            feat, coeff = kv_term(exp)
-            expr_dict[feat] = coeff
-        else:
-            for term in exp.args:
-                feat, coeff = kv_term(term)
-                expr_dict[feat] = coeff
-
-        expressions.append(expr_dict)
-    return expressions
 
 
 def gen_data(

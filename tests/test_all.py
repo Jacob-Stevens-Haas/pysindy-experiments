@@ -1,13 +1,14 @@
 import jax
-import numpy as np
-import pysindy as ps
 import pytest
+import sympy as sp
 
 jax.config.update("jax_platform_name", "cpu")  # diffrax issue 722
+# Alsorequires successive E402
 
 from sindy_exp.data import gen_data  # noqa: E402
+from sindy_exp.plotting import _coeff_dicts_to_matrix  # noqa: E402
 from sindy_exp.typing import NestedDict  # noqa: E402
-from sindy_exp.utils import unionize_coeff_matrices  # noqa: E402
+from sindy_exp.utils import unionize_coeff_dicts  # noqa: E402
 
 
 @pytest.fixture
@@ -34,38 +35,47 @@ def test_flatten_nested_bad_dict():
         deep.flatten()
 
 
-def test_unionize_coeff_matrices():
-    model = ps.SINDy()
-    data = np.arange(10)
-    data = np.vstack((data, data)).T
-    model.fit(data, 0.1, feature_names=["x", "y"])
-    coeff_true = [{"y": -1.0, "zorp_x": 0.1}, {"x": 1.0, "zorp_y": 0.1}]
-    true, est, feats = unionize_coeff_matrices(model, (["x", "y"], coeff_true))
-    assert len(feats) == true.shape[1]
-    assert len(feats) == est.shape[1]
-    assert est.shape == true.shape
+def test_unionize_coeff_dicts_aligns_features():
+    class DummyModel:
+        def equations(self, precision: int = 10):
+            # Two coordinates: x and x + y
+            return ["x", "x + y"]
+
+    x, y, z = sp.symbols("x y z")
+    true_equations = [
+        {x: 2.0},
+        {x: 2.0, z: 3.0},
+    ]
+
+    true_aligned, est_aligned = unionize_coeff_dicts(DummyModel(), true_equations)
+
+    # All coordinates should share the same feature keys
+    all_keys = set(true_aligned[0].keys())
+    assert all(set(d.keys()) == all_keys for d in true_aligned)
+    assert all(set(d.keys()) == all_keys for d in est_aligned)
+
+    # The feature union should include x, y, and z
+    assert all_keys == {x, y, z}
 
 
-def test_unionize_coeff_matrices_translation():
-    model = ps.SINDy()
-    data = np.arange(10)
-    data = np.vstack((data, data)).T
-    model.fit(data, 0.1, feature_names=["a", "b"])
-    coeff_true = [{"y": -1.0}, {"x": 1.0}]
-    true, est, feats = unionize_coeff_matrices(model, (["x", "y"], coeff_true))
-    assert len(feats) == true.shape[1]
-    assert len(feats) == est.shape[1]
-    assert est.shape == true.shape
+def test_coeff_dicts_to_matrix_basic():
+    x, y = sp.symbols("x y")
+    coeffs = [
+        {x: 1.0, y: 2.0},
+        {x: 3.0, y: 4.0},
+    ]
 
+    mat, feature_names = _coeff_dicts_to_matrix(coeffs)
 
-def test_unionize_coeff_matrices_strict():
-    model = ps.SINDy()
-    data = np.arange(10)
-    data = np.vstack((data, data)).T
-    model.fit(data, 0.1, feature_names=["a", "b"])
-    coeff_true = [{"y": -1.0}, {"x": 1.0}]
-    with pytest.raises(ValueError, match="True model and fit model"):
-        unionize_coeff_matrices(model, (["x", "y"], coeff_true), True)
+    # Shape matches number of coordinates and features
+    assert mat.shape == (2, 2)
+
+    # Features are ordered by their string representation
+    assert feature_names == ["x", "y"]
+
+    # Rows correspond to the input dictionaries
+    assert mat[0, :].tolist() == [1.0, 2.0]
+    assert mat[1, :].tolist() == [3.0, 4.0]
 
 
 @pytest.mark.parametrize(
