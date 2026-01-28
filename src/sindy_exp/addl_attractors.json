@@ -1,0 +1,91 @@
+{
+    "LotkaVolterra": {
+        "bifurcation_parameter": null,
+        "citation": "Lotka, A. J. (1925). Elements of Physical Biology. Williams & Wilkins.; Volterra, V. (1926). Fluctuations in the abundance of a species considered mathematically. Nature, 118, 558-560.",
+        "delay": false,
+        "description": "Predator-Prey Model.",
+        "dt": 0.1,
+        "embedding_dimension": 2,
+        "initial_conditions": [10.0, 5.0],
+        "nonautonomous": false,
+        "parameters": {
+            "alpha": 1.0,
+            "beta": 0.1,
+            "gamma": 1.5,
+            "delta": 0.075
+        }
+    },
+    "Hopf": {
+        "bifurcation_parameter": null,
+        "citation": "Standard normal form of a Hopf bifurcation.",
+        "delay": false,
+        "description": "Planar Hopf normal form with cubic nonlinearity.",
+        "dt": 0.1,
+        "embedding_dimension": 2,
+        "initial_conditions": [1.0, 0.0],
+        "nonautonomous": false,
+        "parameters": {
+            "mu": 0.05,
+            "omega": 1.0,
+            "A": 1.0
+        }
+    },
+    "SHO": {
+        "bifurcation_parameter": null,
+        "citation": "Linear damped harmonic oscillator.",
+        "delay": false,
+        "description": "Two-dimensional linear damped oscillator.",
+        "dt": 0.1,
+        "embedding_dimension": 2,
+        "initial_conditions": [1.0, 0.0],
+        "nonautonomous": false,
+        "parameters": {
+            "a": -0.1,
+            "b": 2.0,
+            "c": -2.0,
+            "d": -0.1
+        }
+    },
+    "CubicHO": {
+        "bifurcation_parameter": null,
+        "citation": "Cubic damped harmonic oscillator.",
+        "delay": false,
+        "description": "Two-dimensional cubic damped oscillator.",
+        "dt": 0.1,
+        "embedding_dimension": 2,
+        "initial_conditions": [1.0, 0.0],
+        "nonautonomous": false,
+        "parameters": {
+            "a": -0.1,
+            "b": 2.0,
+            "c": -2.0,
+            "d": -0.1
+        }
+    },
+    "VanDerPol": {
+        "bifurcation_parameter": null,
+        "citation": "Van der Pol, B. (1926). On relaxation-oscillations. The London, Edinburgh, and Dublin Philosophical Magazine and Journal of Science, 2(11), 978-992.",
+        "delay": false,
+        "description": "Classic Van der Pol relaxation oscillator.",
+        "dt": 0.1,
+        "embedding_dimension": 2,
+        "initial_conditions": [1.0, 0.0],
+        "nonautonomous": false,
+        "parameters": {
+            "mu": 0.5
+        }
+    },
+    "Kinematics": {
+        "bifurcation_parameter": null,
+        "citation": "Uniformly accelerated one-dimensional motion.",
+        "delay": false,
+        "description": "Position and velocity with constant acceleration.",
+        "dt": 0.1,
+        "embedding_dimension": 2,
+        "initial_conditions": [0.0, 0.0],
+        "nonautonomous": false,
+        "parameters": {
+            "a": -1.0
+        }
+    }
+}
