@@ -17,7 +17,7 @@ try:
 
     from ._diffrax_solver import _gen_data_jax
 except ImportError:
-    raise
+    pass
 
 INTEGRATOR_KEYWORDS = {"rtol": 1e-12, "method": "LSODA", "atol": 1e-12}
 MOD_LOG = getLogger(__name__)
