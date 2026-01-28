@@ -25,20 +25,17 @@ symbols, exprs, lambda_rhs = object_to_sympy_rhs(lor)
 # `exprs` is a list of SymPy expressions for the RHS
 # `lambda_rhs` is a SymPy Lambda mapping state symbols -> rhs expressions
 """
+
 from __future__ import annotations
 
 import ast
 import inspect
 import textwrap
-from typing import Any
-from typing import Callable
-from typing import Dict
-from typing import List
-from typing import Tuple
+from typing import Any, Callable, Dict, List, Tuple
 
 import numpy as np
 import sympy as sp
-from dysts.base import BaseDyn, DynSys
+from dysts.base import BaseDyn
 
 
 def _is_name(node: ast.AST, name: str) -> bool:

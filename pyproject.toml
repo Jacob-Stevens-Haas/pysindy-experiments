@@ -36,6 +36,7 @@ jax = [
   "jax[cuda12]",
   "diffrax",
   "sympy2jax",
+  "typing_extensions"
 ]
 dev = [
   "ipykernel",
@@ -93,12 +94,20 @@ markers = ["slow"]
 [tool.mypy]
 files = [
   "src/sindy_exp/__init__.py",
-  "src/sindy_exp/utils.py",
+  "src/sindy_exp/_utils.py",
   "tests/test_all.py",
 ]
 
 [[tool.mypy.overrides]]
 module="sklearn.*"
+ignore_missing_imports=true
+
+[[tool.mypy.overrides]]
+module="pysindy.*"
+ignore_missing_imports=true
+
+[[tool.mypy.overrides]]
+module="sympy.*"
 ignore_missing_imports=true
 
 [[tool.mypy.overrides]]

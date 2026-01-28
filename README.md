@@ -5,7 +5,7 @@ This includes data generation and plotting/evaluation.
 
 ## Getting started
 
-It's not yet on PyPI, so install it with `pip install sindy_exp @ git+https://github.com/Jacob-Stevens-Haas/gen-experiments`
+It's not yet on PyPI, so install it with `pip install sindy_exp @ git+https://github.com/Jacob-Stevens-Haas/sindy-experiments`
 
 Generate data
 

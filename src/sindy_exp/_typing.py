@@ -7,7 +7,6 @@ from typing import (
     NamedTuple,
     Optional,
     Protocol,
-    Self,
     TypeVar,
     overload,
 )
@@ -16,6 +15,7 @@ import numpy as np
 import sympy as sp
 from numpy.typing import NBitBase
 from sympy import Expr
+from typing_extensions import Self
 
 NpFlt = np.dtype[np.floating]
 Float1D = np.ndarray[tuple[int], NpFlt]
@@ -30,10 +30,11 @@ TrajectoryType = TypeVar("TrajectoryType", list[np.ndarray], np.ndarray)
 class _BaseSINDy(Protocol):
     optimizer: Any
     feature_library: Any
+    feature_names: list[str]
 
     def fit(self, x: TrajectoryType, t: TrajectoryType, *args, **kwargs) -> Self: ...
 
-    def simulate(self, x0: np.ndarray, t: np.ndarray) -> np.ndarray: ...
+    def simulate(self, x0: np.ndarray, t: np.ndarray, **kwargs) -> np.ndarray: ...
 
     def score(
         self,
@@ -43,7 +44,7 @@ class _BaseSINDy(Protocol):
         metric: Callable,
     ) -> float: ...
 
-    def predict(self, x: np.ndarray, u: None | np.ndarray) -> np.ndarray: ...
+    def predict(self, x: np.ndarray, u: None | np.ndarray = None) -> np.ndarray: ...
 
     def coefficients(self): ...
 
@@ -51,7 +52,10 @@ class _BaseSINDy(Protocol):
     def equations(self) -> list[str]: ...
 
     @overload
-    def equations(self, precision: int, fmt: Literal["str"]) -> list[str]: ...
+    def equations(self, precision: int) -> list[str]: ...
+
+    @overload
+    def equations(self, precision: int, fmt: Literal["str"] | None) -> list[str]: ...
 
     @overload
     def equations(
