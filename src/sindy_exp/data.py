@@ -145,7 +145,7 @@ def gen_data(
         )
     if display and prob_data_list:
         sample = prob_data_list[0]
-        figs = plot_training_data(sample.x_train, sample.x_train_true)
+        figs = plot_training_data(sample.t_train, sample.x_train, sample.x_train_true)
         figs[0].suptitle("Sample Trajectory")
     return {
         "data": {"trajectories": prob_data_list, "coeff_true": coeff_true},

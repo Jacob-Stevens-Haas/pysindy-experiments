@@ -41,7 +41,7 @@ MOD_LOG = getLogger(__name__)
 LOCAL_DYNAMICS_PATH = resources.files("sindy_exp").joinpath("addl_attractors.json")
 
 
-def add_forcing(
+def _add_forcing(
     forcing_func: Callable[[float], np.ndarray[tuple[T], DType]],
     auto_func: Callable[
         [float, np.ndarray[tuple[T], DType]], np.ndarray[tuple[T], DType]
@@ -191,7 +191,7 @@ def fit_eval(
 
     x_train = [traj.x_train for traj in trajectories]
     t_train = [traj.t_train for traj in trajectories]
-    model.fit(x_train, t=t_train)
+    model.fit(x_train, t=t_train, feature_names=input_features)
 
     MOD_LOG.info(f"Fitting a model: {model}")
     coeff_true_dicts, coeff_est_dicts = unionize_coeff_dicts(model, true_equations)
@@ -245,7 +245,11 @@ def fit_eval(
         plot_ode_panel(trial_data)
         for i, traj in enumerate(trajectories):
             fig_composite, fig_by_coord_1d = plot_training_data(
-                traj.x_train, traj.x_train_true, x_smooth=smooth_x[i]
+                traj.t_train,
+                traj.x_train,
+                traj.x_train_true,
+                x_smooth=smooth_x[i],
+                coord_names=input_features,
             )
             if simulations:
                 # Overlay test trajectory time series on the coordinate-wise figure
@@ -255,6 +259,7 @@ def fit_eval(
                     traj.t_train,
                     sims[i].t_sim,
                     figs=(fig_composite, fig_by_coord_1d),
+                    coord_names=input_features,
                 )
     if return_all:
         return {"metrics": metrics, "data": trial_data, "main": metrics["main"]}

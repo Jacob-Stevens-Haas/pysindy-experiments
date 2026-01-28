@@ -36,7 +36,7 @@ class _ColorConstants:
         return self.color_sequence[2]
 
     @property
-    def EST2(self):
+    def SIM(self):
         return self.color_sequence[3]
 
     @property
@@ -128,7 +128,7 @@ def _coeff_dicts_to_matrix(
         for col, feat in enumerate(features):
             mat[row, col] = d[feat]
 
-    feature_names = [str(f) for f in features]
+    feature_names = [str(f).replace("**", "^") for f in features]
     return mat, feature_names
 
 
@@ -268,7 +268,11 @@ def _plot_training_trajectory(
     x_smooth: np.ndarray | None,
     labels: bool = True,
 ) -> None:
-    """Plot a single training trajectory"""
+    """Plot a single training trajectory
+
+    If x_smooth is provided, it is only plotted if sufficiently different
+    from x_train.
+    """
     if x_train.shape[1] == 2:
         ax.plot(
             x_true[:, 0], x_true[:, 1], ".", label="True", color=COLOR.TRUE, **PLOT_KWS
@@ -283,7 +287,7 @@ def _plot_training_trajectory(
         )
         if (
             x_smooth is not None
-            and np.linalg.norm(x_smooth - x_train) / x_smooth.size > 1e-12
+            and np.linalg.norm(x_smooth - x_train) / np.linalg.norm(x_train) > 1e-12
         ):
             ax.plot(
                 x_smooth[:, 0],
@@ -338,57 +342,85 @@ def _plot_training_trajectory(
 
 
 def plot_training_data(
-    x_train: np.ndarray, x_true: np.ndarray, x_smooth: np.ndarray | None = None
+    t_train: np.ndarray,
+    x_train: np.ndarray,
+    x_true: np.ndarray,
+    x_smooth: np.ndarray | None = None,
+    coord_names: Optional[Sequence[str]] = None,
 ) -> tuple[Figure, Figure]:
     """Plot training data (and smoothed training data, if different)."""
+    if coord_names is None:
+        coord_names = [f"$x_{i}$" for i in range(x_true.shape[1])]
+
     fig_composite = plt.figure(figsize=(12, 6))
     if x_train.shape[-1] == 2:
         ax_traj = fig_composite.add_subplot(1, 2, 1)
-        coord_names = ("x", "y")
     elif x_train.shape[-1] == 3:
         ax_traj = fig_composite.add_subplot(1, 2, 1, projection="3d")
-        coord_names = ("x", "y", "z")
     else:
         raise ValueError("Too many or too few coordinates to plot")
     _plot_training_trajectory(ax_traj, x_train, x_true, x_smooth)
     ax_traj.legend()
-    ax_traj.set(title="Training data")
+    ax_traj.set(title="Trajectory Plot")
     ax_psd = fig_composite.add_subplot(1, 2, 2)
-    ax_psd.loglog(
-        np.abs(scipy.fft.rfft(x_train, axis=0)) / np.sqrt(len(x_train)),
-        color=COLOR.MEAS,
-    )
-    ax_psd.loglog(
-        np.abs(scipy.fft.rfft(x_true, axis=0)) / np.sqrt(len(x_true)), color=COLOR.TRUE
-    )
-    ax_psd.legend(coord_names)
-    ax_psd.set(title="Training Data Absolute Spectral Density")
-    ax_psd.set(xlabel="Wavenumber")
-    ax_psd.set(ylabel="Magnitude")
+    _plot_data_psd(ax_psd, x_train, coord_names, traj_type="train")
+    _plot_data_psd(ax_psd, x_true, coord_names, traj_type="true")
+    ax_psd.set(title="Absolute Spectral Density")
 
     n_coord = x_true.shape[-1]
     fig_by_coord_1d = plt.figure(figsize=(n_coord * 4, 6))
-    for coord_ind in range(n_coord):
+    for coord_ind, cname in enumerate(coord_names):
         ax = fig_by_coord_1d.add_subplot(n_coord, 1, coord_ind + 1)
-        ax.set_title(coord_names[coord_ind])
-        plot_training_1d(ax, coord_ind, x_train, x_true, x_smooth)
+        plot_training_1d(ax, coord_ind, t_train, x_train, x_true, x_smooth, cname)
 
     fig_by_coord_1d.axes[-1].legend()
 
     return fig_composite, fig_by_coord_1d
 
 
+def _plot_data_psd(
+    ax: Axes,
+    x: np.ndarray,
+    coord_names: Sequence[str],
+    traj_type: str = "train",
+):
+    """Plot the power spectral density of training data."""
+    if traj_type == "train":
+        color = COLOR.MEAS
+    elif traj_type == "sim":
+        color = COLOR.SIM
+    elif traj_type == "true":
+        color = COLOR.TRUE
+    elif traj_type == "smooth":
+        color = COLOR.EST
+    else:
+        raise ValueError(f"Unknown traj_type '{traj_type}'")
+    coord_names = [name + f" {traj_type}" for name in coord_names]
+    for coord, series in zip(coord_names, x.T):
+        ax.loglog(
+            np.abs(scipy.fft.rfft(series)) / np.sqrt(len(series)),
+            color=color,
+            label=coord,
+        )
+    ax.legend()
+    ax.set(xlabel="Wavenumber")
+    ax.set(ylabel="Magnitude")
+
+
 def plot_training_1d(
     ax: Axes,
     coord_ind: int,
+    t_train: np.ndarray,
     x_train: np.ndarray,
     x_true: np.ndarray,
     x_smooth: Optional[np.ndarray],
+    coord_name: str,
 ):
-    ax.plot(x_train[..., coord_ind], "b.", color=COLOR.MEAS, label="measured")
-    ax.plot(x_true[..., coord_ind], "r-", color=COLOR.TRUE, label="true")
+    ax.plot(t_train, x_train[..., coord_ind], ".", color=COLOR.MEAS, label="measured")
+    ax.plot(t_train, x_true[..., coord_ind], "-", color=COLOR.TRUE, label="true")
     if x_smooth is not None:
-        ax.plot(x_smooth[..., coord_ind], color=COLOR.EST, label="smoothed")
+        ax.plot(t_train, x_smooth[..., coord_ind], color=COLOR.EST, label="smoothed")
+    ax.set(xlabel="t", ylabel=coord_name)
 
 
 def plot_pde_training_data(last_train, last_train_true, smoothed_last_train):
@@ -407,49 +439,60 @@ def plot_pde_training_data(last_train, last_train_true, smoothed_last_train):
 
 def plot_test_sim_data_1d_panel(
     axs: Sequence[Axes],
-    x_test: np.ndarray,
+    x_true: Optional[np.ndarray],
     x_sim: np.ndarray,
     t_test: np.ndarray,
     t_sim: np.ndarray,
+    coord_names: Sequence[str],
 ) -> None:
     for ordinate, ax in enumerate(axs):
-        ax.plot(t_test, x_test[:, ordinate], "k", label="true trajectory")
-        axs[ordinate].plot(t_sim, x_sim[:, ordinate], "r--", label="model simulation")
-        axs[ordinate].legend()
-        axs[ordinate].set(xlabel="t", ylabel="$x_{}$".format(ordinate))
+        if x_true is not None:
+            ax.plot(t_test, x_true[:, ordinate], color=COLOR.TRUE, label="True")
+        axs[ordinate].plot(
+            t_sim, x_sim[:, ordinate], "--", color=COLOR.SIM, label="Simulation"
+        )
+        axs[ordinate].set(xlabel="t", ylabel=coord_names[ordinate])
 
 
 def _plot_test_sim_data_2d(
-    axs: Annotated[Sequence[Axes], "len=2"],
-    x_test: np.ndarray,
+    ax: Axes,
+    x_true: Optional[np.ndarray],
     x_sim: np.ndarray,
-    labels: bool = True,
+    labels: bool,
+    coord_names: Sequence[str],
 ) -> None:
-    axs[0].plot(x_test[:, 0], x_test[:, 1], "k", label="True Trajectory")
-    axs[1].plot(x_sim[:, 0], x_sim[:, 1], "r--", label="Simulation")
-    for ax in axs:
-        if labels:
-            ax.set(xlabel="$x_0$", ylabel="$x_1$")
-        else:
-            ax.set(xticks=[], yticks=[])
+    if x_true is not None:
+        ax.plot(x_true[:, 0], x_true[:, 1], color=COLOR.TRUE, label="True Values")
+    ax.plot(x_sim[:, 0], x_sim[:, 1], "--", color=COLOR.SIM, label="Simulation")
+    if labels:
+        ax.set(xlabel=coord_names[0], ylabel=coord_names[1])
+    else:
+        ax.set(xticks=[], yticks=[])
 
 
 def _plot_test_sim_data_3d(
-    ax: Axes, x_vals: np.ndarray, label: Optional[str] = None, color: Optional = None
+    ax: Axes, x_vals: np.ndarray, label: Optional[str], coord_names: Sequence[str]
 ):
-    ax.plot(x_vals[:, 0], x_vals[:, 1], x_vals[:, 2], color, label=label)
+    if label == "True":
+        color = COLOR.TRUE
+    elif label == "Simulation":
+        color = COLOR.SIM
+    else:
+        color = None
+    ax.plot(x_vals[:, 0], x_vals[:, 1], x_vals[:, 2], color=color, label=label)
     if label:
-        ax.set(xlabel="$x_0$", ylabel="$x_1$", zlabel="$x_2$")
+        ax.set(xlabel=coord_names[0], ylabel=coord_names[1], zlabel=coord_names[2])
     else:
         ax.set(xticks=[], yticks=[], zticks=[])
 
 
 def plot_test_trajectory(
-    x_test: np.ndarray,
+    x_true: np.ndarray,
     x_sim: np.ndarray,
     t_test: np.ndarray,
     t_sim: np.ndarray,
     figs: Optional[tuple[Figure, Figure]] = None,
+    coord_names: Optional[Sequence[str]] = None,
 ) -> tuple[Figure, Figure]:
     """Plot a test trajectory
 
@@ -462,36 +505,40 @@ def plot_test_trajectory(
         The sequence of axes used for the single-dimension time-series plots.
         If ``axs`` is provided, the same sequence is returned.
     """
+    if coord_names is None:
+        coord_names = [f"$x_{i}$" for i in range(x_true.shape[1])]
     if not figs:
-        fig1, axs1 = plt.subplots(x_test.shape[1], 1, sharex=True, figsize=(7, 9))
-        if x_test.shape[1] == 2:
-            fig2, axs2 = plt.subplots(1, 2, figsize=(10, 4.5))
-            _plot_test_sim_data_2d(axs2, x_test, x_sim)
-        elif x_test.shape[1] == 3:
-            fig2, axs2 = plt.subplots(
+        fig_by_coord_1d, axs_by_coord = plt.subplots(
+            x_true.shape[1], 1, sharex=True, figsize=(7, 9)
+        )
+        if x_true.shape[1] == 2:
+            fig_composite, axs_composite = plt.subplots(1, 2, figsize=(10, 4.5))
+        elif x_true.shape[1] == 3:
+            fig_composite, axs_composite = plt.subplots(
                 1, 2, figsize=(10, 4.5), subplot_kw={"projection": "3d"}
             )
-            _plot_test_sim_data_3d(axs2[0], x_test, "True Trajectory", "k")
-            _plot_test_sim_data_3d(axs2[1], x_sim, "Simulation", "r--")
         else:
             raise ValueError("Can only plot 2d or 3d data.")
     else:
-        fig1, fig2 = figs
-        axs1 = fig1.axes
-        axs2 = fig2.axes
+        fig_composite, fig_by_coord_1d = figs
+        axs_composite = fig_composite.axes
+        axs_by_coord = fig_by_coord_1d.axes
 
-    assert isinstance(axs1, list)
-    assert isinstance(axs2, list)
-    plot_test_sim_data_1d_panel(axs1, x_test, x_sim, t_test, t_sim)
-    axs1[-1].legend()
-    if x_test.shape[1] == 2:
-        _plot_test_sim_data_2d(axs2, x_test, x_sim)
-    elif x_test.shape[1] == 3:
-        _plot_test_sim_data_3d(axs2[0], x_test, "True Trajectory", "k")
-        _plot_test_sim_data_3d(axs2[1], x_sim, "Simulation", "r--")
+    assert isinstance(axs_composite, list)
+    assert isinstance(axs_by_coord, list)
+    plot_test_sim_data_1d_panel(axs_by_coord, None, x_sim, t_test, t_sim, coord_names)
+    axs_by_coord[-1].legend()
+    if x_true.shape[1] == 2:
+        _plot_test_sim_data_2d(
+            axs_composite[0], None, x_sim, labels=True, coord_names=coord_names
+        )
+    elif x_true.shape[1] == 3:
+        _plot_test_sim_data_3d(axs_composite[0], x_sim, "Simulation", coord_names)
+    axs_composite[0].legend()
+    _plot_data_psd(axs_composite[1], x_sim, coord_names, traj_type="sim")
     if not figs:
-        fig1.suptitle("Test Trajectories by Dimension")
-        fig2.suptitle("Full Test Trajectories")
-        axs2[0].set(title="true trajectory")
-        axs2[1].set(title="model simulation")
-    return fig1, fig2
+        fig_by_coord_1d.suptitle("Test Trajectories by Dimension")
+        fig_composite.suptitle("Full Test Trajectories")
+        axs_composite[0].set(title="true trajectory")
+        axs_composite[0].set(title="model simulation")
+    return fig_composite, fig_by_coord_1d

@@ -9,7 +9,12 @@ import pysindy as ps
 import sklearn
 import sklearn.metrics
 import sympy as sp
-from sympy.parsing.sympy_parser import convert_xor, parse_expr, standard_transformations
+from sympy.parsing.sympy_parser import (
+    convert_xor,
+    implicit_multiplication_application,
+    parse_expr,
+    standard_transformations,
+)
 
 from .typing import Float1D, Float2D, FloatND, ProbData, _BaseSINDy
 
@@ -39,13 +44,22 @@ def _sympy_expr_to_feat_coeff(sp_expr: list[sp.Expr]) -> list[dict[sp.Expr, floa
 
     def kv_term(term: sp.Expr) -> tuple[sp.Expr, float]:
         if not isinstance(term, sp.Mul):
-            coeff = 1.0
-            feat = term
+            # Term is either a constant or a feature without a coefficient
+            if isinstance(term, sp.Number):
+                coeff = float(term)
+                feat = sp.Integer(1)
+            elif isinstance(term, (sp.Symbol, sp.Pow, sp.Function)):
+                coeff = 1.0
+                feat = term
+            else:
+                raise ValueError(f"Unrecognized term format: {term}")
         else:
             try:
+                # Assume multiplication is coefficient * feature(s)
                 coeff = float(term.args[0])
                 args = term.args[1:]
             except TypeError:
+                # e.g. x**2 or x * y has no numeric coefficient
                 coeff = 1.0
                 args = term.args
             if len(args) == 1:
@@ -68,7 +82,7 @@ def _sympy_expr_to_feat_coeff(sp_expr: list[sp.Expr]) -> list[dict[sp.Expr, floa
     return expressions
 
 
-def sindy_equations_to_sympy(model: _BaseSINDy) -> list[sp.Expr]:
+def _sindy_equations_to_sympy(model: _BaseSINDy) -> tuple[list[sp.Expr], list[sp.Expr]]:
     """Convert a SINDy model's string equations to SymPy expressions.
 
     Uses sympy's parser with ``convert_xor`` so that terms like ``x^2`` are
@@ -76,9 +90,25 @@ def sindy_equations_to_sympy(model: _BaseSINDy) -> list[sp.Expr]:
     """
 
     # Use a fixed precision for reproducible string equations.
+    input_features = {feat: sp.sympify(feat) for feat in model.feature_names}
     eq_strings = model.equations(10)  # type: ignore[call-arg]
-    transformations = standard_transformations + (convert_xor,)
-    return [parse_expr(eq, transformations=transformations) for eq in eq_strings]
+    feat_strs = model.feature_library.get_feature_names(
+        input_features=model.feature_names
+    )
+    xforms = standard_transformations + (
+        implicit_multiplication_application,
+        convert_xor,
+    )
+    feat_symb = [
+        parse_expr(fstr, transformations=xforms, evaluate=False) for fstr in feat_strs
+    ]
+    eq_symb = [
+        parse_expr(
+            eq, local_dict=input_features, transformations=xforms, evaluate=False
+        )
+        for eq in eq_strings
+    ]
+    return feat_symb, eq_symb
 
 
 @dataclass
@@ -243,8 +273,9 @@ def unionize_coeff_dicts(
         keys across all coordinates.
     """
 
-    est_exprs = sindy_equations_to_sympy(model)
-    est_equations = _sympy_expr_to_feat_coeff(est_exprs)
+    feat_exprs, est_eq_exprs = _sindy_equations_to_sympy(model)
+    # est_equations should be unnecessary; all terms are provided by features
+    est_equations = _sympy_expr_to_feat_coeff(est_eq_exprs)
 
     if len(est_equations) != len(true_equations):
         raise ValueError(
@@ -254,10 +285,14 @@ def unionize_coeff_dicts(
 
     true_aligned: list[dict[sp.Expr, float]] = []
     est_aligned: list[dict[sp.Expr, float]] = []
+    empty_feats: list[dict[sp.Expr, float]] = [dict.fromkeys(feat_exprs, 0.0)]
 
-    all_features = {
-        expr for eq in chain(true_equations, est_equations) for expr in eq.keys()
-    }
+    all_features = [
+        expr
+        for eq in chain(empty_feats, true_equations, est_equations)
+        for expr in eq.keys()
+    ]
+    all_features = list(dict.fromkeys(all_features))  # deduplicate, preserve order
     for true_eq, est_eq in zip(true_equations, est_equations):
         true_aligned.append({feat: true_eq.get(feat, 0.0) for feat in all_features})
         est_aligned.append({feat: est_eq.get(feat, 0.0) for feat in all_features})
