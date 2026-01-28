@@ -1,4 +1,5 @@
 from collections import defaultdict
+from dataclasses import dataclass
 from typing import (
     Any,
     Callable,
@@ -12,6 +13,7 @@ from typing import (
 )
 
 import numpy as np
+import sympy as sp
 from numpy.typing import NBitBase
 from sympy import Expr
 
@@ -128,3 +130,25 @@ class NestedDict(defaultdict):
             return new
 
         return _flatten(self)
+
+
+@dataclass
+class DynamicsTrialData:
+    trajectories: list[ProbData]
+    true_equations: list[dict[sp.Expr, float]]
+    sindy_equations: list[dict[sp.Expr, float]]
+    model: _BaseSINDy
+    input_features: list[str]
+    smooth_train: list[np.ndarray]
+
+
+@dataclass
+class SINDyTrialUpdate:
+    t_sim: Float1D
+    t_test: Float1D
+    x_sim: FloatND
+
+
+@dataclass
+class FullDynamicsTrialData(DynamicsTrialData):
+    sims: list[SINDyTrialUpdate]

@@ -371,7 +371,7 @@ def plot_training_data(
     fig_by_coord_1d = plt.figure(figsize=(n_coord * 4, 6))
     for coord_ind, cname in enumerate(coord_names):
         ax = fig_by_coord_1d.add_subplot(n_coord, 1, coord_ind + 1)
-        plot_training_1d(ax, coord_ind, t_train, x_train, x_true, x_smooth, cname)
+        _plot_training_1d(ax, coord_ind, t_train, x_train, x_true, x_smooth, cname)
 
     fig_by_coord_1d.axes[-1].legend()
 
@@ -407,7 +407,7 @@ def _plot_data_psd(
     ax.set(ylabel="Magnitude")
 
 
-def plot_training_1d(
+def _plot_training_1d(
     ax: Axes,
     coord_ind: int,
     t_train: np.ndarray,
@@ -423,7 +423,7 @@ def plot_training_1d(
     ax.set(xlabel="t", ylabel=coord_name)
 
 
-def plot_pde_training_data(last_train, last_train_true, smoothed_last_train):
+def _plot_pde_training_data(last_train, last_train_true, smoothed_last_train):
     """Plot training data (and smoothed training data, if different)."""
     # 1D:
     if len(last_train.shape) == 3:
@@ -437,7 +437,7 @@ def plot_pde_training_data(last_train, last_train_true, smoothed_last_train):
         return plt.show()
 
 
-def plot_test_sim_data_1d_panel(
+def _plot_test_sim_data_1d_panel(
     axs: Sequence[Axes],
     x_true: Optional[np.ndarray],
     x_sim: np.ndarray,
@@ -526,7 +526,7 @@ def plot_test_trajectory(
 
     assert isinstance(axs_composite, list)
     assert isinstance(axs_by_coord, list)
-    plot_test_sim_data_1d_panel(axs_by_coord, None, x_sim, t_test, t_sim, coord_names)
+    _plot_test_sim_data_1d_panel(axs_by_coord, None, x_sim, t_test, t_sim, coord_names)
     axs_by_coord[-1].legend()
     if x_true.shape[1] == 2:
         _plot_test_sim_data_2d(

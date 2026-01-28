@@ -3,52 +3,43 @@
 A library for constructing dynamics experiments.
 This includes data generation and plotting/evaluation.
 
-
 ## Getting started
 
-It's not yet on pypi, so install it with `pip install sindy_exp @ git+https://github.com/Jacob-Stevens-Haas/gen-experiments`
+It's not yet on PyPI, so install it with `pip install sindy_exp @ git+https://github.com/Jacob-Stevens-Haas/gen-experiments`
 
-Generate data from any of the dysts systems with
+Generate data
 
+    data = sindy_exp.data.gen_data("lorenz", num_trajectories=5, t_end=10.0, dt=0.01)["data]
 
-## Mitosis
+Evaluate your SINDy-like model with:
 
-with declarative syntax and
-configuration.  These experiments are meant to be run via [`mitosis`](https://github.com/Jacob-Stevens-Haas/mitosis),
-but `mitosis` is not a requirement to run them.  It partially annotated with call signatures, and I'm happy to add more
-as people point them out.
+    sindy_exp.odes.fit_eval(model, data)
 
-While this evolved out of the ctf4science and pysindy projects, the aim is to make
-these experiments only depend generically on the pysindy API,
-without any explicit dependencies.
-The experiments can be used for models that are in pysindy but not officially SINDy,
-or outside of pysindy so long as they have a similar object.
+![Coefficient plots](images/coeff.png)
 
-It's not yet on pypi, so install it with `pip install git+https://github.com/Jacob-Stevens-Haas/gen-experiments`
-or clone and install it locally.
+A list of available ODE systems can be found in `ODE_CLASSES`, which includes most
+of the systems from the [dysts package](https://pypi.org/project/dysts/) as well as some non-chaotic systems.
 
-## Experiment Steps
+## ODE representation
 
-There are two experiment steps made available:
+We deal primarily with autonomous ODE systems of the form:
 
-* `sindy_exp.data.gen_data()`: calls upon dysts to generate ODE data in standard format
-* `sindy_exp.odes.run()`: fits and evaluates a model on data.
+    dx/dt = sum_i f_i(x)
 
-If you have data of your own, create a step that puts data in the same format as
-`sindy_exp.data.gen_data()`.
+Thus, we represent ODE systems as a list of right-hand side expressions.
+Each element is a dictionary mapping a term (Sympy expression) to its coefficient.
 
+## Other useful imports, compatibility, and extensions
 
-## Plotting and diagnostics
+This is built to be compatible with dynamics learning models that follow the
+pysindy _BaseSINDy interface.
+The experiments are also built to be compatible with the `mitosis` tool,
+an experiment runner.
+To integrate your own experiments or data generation in a way that is compatible,
+see the `ProbData` and `DynamicsTrialData` classes.
+For plotting tools, see `plot_coefficients`, `compare_coefficient_plots_from_dicts`,
+`plot_test_trajectory`, `plot_training_data`, and `COLOR`.
+For metrics, see `coeff_metrics`, `pred_metrics`, and `integration_metrics`.
 
-Perhaps of most significance are the SINDy diagnostic plotting, which can be used for
-your own experiments or in your notebooks.  `sindy_exp.plotting` has a variety
-of functions for creating diagnostics of fitted SINDy models:
-
-* `sindy_exp.plotting.compare_coefficient_plots()` and its cousins,
-  `sindy_exp.utils.unionize_coeff_dicts()` and
-  `sindy_exp.plotting.compare_coefficient_plots_from_dicts()`, which are used
-  to align and visualize coefficient dictionaries from models with different
-  features.
-* `sindy_exp.utils.coeff_metrics()` and `sindy_exp.utils.pred_metrics()`
-* `sindy_exp.plotting.plot_training_data()`
-* `sindy_exp.plotting.plot_test_trajectories()`
+![3d plot](images/composite.png)
+![1d plot](images/1d.png)

@@ -8,19 +8,22 @@ import pysindy as ps
 import sympy as sp
 from dysts.base import DynSys
 
-from .plotting import (
+from ._plotting import (
     compare_coefficient_plots_from_dicts,
     plot_test_trajectory,
     plot_training_data,
 )
-from .typing import ProbData, _BaseSINDy
-from .utils import (
+from ._typing import (
     DynamicsTrialData,
     FullDynamicsTrialData,
+    ProbData,
     SINDyTrialUpdate,
+    _BaseSINDy,
+)
+from ._utils import (
+    _simulate_test_data,
     coeff_metrics,
     integration_metrics,
-    simulate_test_data,
     unionize_coeff_dicts,
 )
 
@@ -223,7 +226,7 @@ def fit_eval(
         sims: list[SINDyTrialUpdate] = []
         integration_metric_list: list[dict[str, float | np.floating]] = []
         for traj in trajectories:
-            sim = simulate_test_data(model, traj.dt, traj.x_train_true)
+            sim = _simulate_test_data(model, traj.dt, traj.x_train_true)
             sims.append(sim)
             integration_metric_list.append(
                 integration_metrics(

@@ -1,5 +1,4 @@
 import logging
-from dataclasses import dataclass
 from itertools import chain
 from typing import cast
 from warnings import warn
@@ -16,19 +15,11 @@ from sympy.parsing.sympy_parser import (
     standard_transformations,
 )
 
-from .typing import Float1D, Float2D, FloatND, ProbData, _BaseSINDy
+from sindy_exp._typing import SINDyTrialUpdate
+
+from ._typing import Float1D, Float2D, _BaseSINDy
 
 logger = logging.getLogger(__name__)
-
-
-@dataclass
-class DynamicsTrialData:
-    trajectories: list[ProbData]
-    true_equations: list[dict[sp.Expr, float]]
-    sindy_equations: list[dict[sp.Expr, float]]
-    model: _BaseSINDy
-    input_features: list[str]
-    smooth_train: list[np.ndarray]
 
 
 def _sympy_expr_to_feat_coeff(sp_expr: list[sp.Expr]) -> list[dict[sp.Expr, float]]:
@@ -109,18 +100,6 @@ def _sindy_equations_to_sympy(model: _BaseSINDy) -> tuple[list[sp.Expr], list[sp
         for eq in eq_strings
     ]
     return feat_symb, eq_symb
-
-
-@dataclass
-class SINDyTrialUpdate:
-    t_sim: Float1D
-    t_test: Float1D
-    x_sim: FloatND
-
-
-@dataclass
-class FullDynamicsTrialData(DynamicsTrialData):
-    sims: list[SINDyTrialUpdate]
 
 
 def diff_lookup(kind):
@@ -345,7 +324,7 @@ def make_model(
     )
 
 
-def simulate_test_data(
+def _simulate_test_data(
     model: _BaseSINDy, dt: float, x_test: Float2D
 ) -> SINDyTrialUpdate:
     """Add simulation data to grid_data

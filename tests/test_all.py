@@ -12,11 +12,11 @@ jax.config.update("jax_platform_name", "cpu")  # diffrax issue 722
 # Alsorequires successive E402
 
 
-from sindy_exp.data import gen_data  # noqa: E402
-from sindy_exp.plotting import _coeff_dicts_to_matrix  # noqa: E402
-from sindy_exp.typing import NestedDict  # noqa: E402
-from sindy_exp.utils import unionize_coeff_dicts  # noqa: E402
-from sindy_exp.utils import (  # noqa: E402
+from sindy_exp._data import gen_data  # noqa: E402
+from sindy_exp._plotting import _coeff_dicts_to_matrix  # noqa: E402
+from sindy_exp._typing import NestedDict  # noqa: E402
+from sindy_exp._utils import unionize_coeff_dicts  # noqa: E402
+from sindy_exp._utils import (  # noqa: E402
     _sindy_equations_to_sympy,
     _sympy_expr_to_feat_coeff,
 )

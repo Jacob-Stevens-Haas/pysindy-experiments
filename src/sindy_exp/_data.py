@@ -1,5 +1,4 @@
 from logging import getLogger
-from pathlib import Path
 from typing import Any, Callable, Optional, cast
 
 import dysts.flows
@@ -8,10 +7,10 @@ import numpy as np
 import scipy
 
 from ._dysts_to_sympy import dynsys_to_sympy
-from .odes import SHO, CubicHO, Hopf, Kinematics, LotkaVolterra, VanDerPol
-from .plotting import plot_training_data
-from .typing import Float1D, ProbData
-from .utils import _sympy_expr_to_feat_coeff
+from ._odes import SHO, CubicHO, Hopf, Kinematics, LotkaVolterra, VanDerPol
+from ._plotting import plot_training_data
+from ._typing import Float1D, ProbData
+from ._utils import _sympy_expr_to_feat_coeff
 
 try:
     import jax
@@ -21,7 +20,6 @@ except ImportError:
     raise
 
 INTEGRATOR_KEYWORDS = {"rtol": 1e-12, "method": "LSODA", "atol": 1e-12}
-TRIALS_FOLDER = Path(__file__).parent.absolute() / "trials"
 MOD_LOG = getLogger(__name__)
 
 ODE_CLASSES = {

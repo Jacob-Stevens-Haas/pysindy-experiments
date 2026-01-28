@@ -1,93 +1,28 @@
-import importlib
-from collections import defaultdict
-from collections.abc import Mapping
-from typing import Any
+from ._data import ODE_CLASSES, gen_data
+from ._odes import fit_eval, plot_ode_panel
+from ._plotting import (
+    COLOR,
+    compare_coefficient_plots_from_dicts,
+    plot_coefficients,
+    plot_test_trajectory,
+    plot_training_data,
+)
+from ._typing import DynamicsTrialData, ProbData
+from ._utils import coeff_metrics, integration_metrics, pred_metrics
 
-import numpy as np
-from numpy.typing import NDArray
-from pysindy import BaseDifferentiation, FiniteDifference, SINDy
-
-from . import odes
-from .typing import ProbData
-from .utils import DynamicsTrialData, make_model  # noqa: F401
-
-this_module = importlib.import_module(__name__)
-BORING_ARRAY = np.ones((2, 2), dtype=float)
-
-Scores = Mapping[str, float]
-
-
-class FakeModel(SINDy):
-    differentiation_method: BaseDifferentiation
-
-    def __init__(self) -> None:
-        self.differentiation_method = FiniteDifference()
-        self.differentiation_method.smoothed_x_ = np.ones((1, 2))
-
-    def print(self, *args: Any, **kwargs: Any) -> None:
-        print("fake model")
-
-    def simulate(self, *args: Any, **kwargs: Any) -> NDArray[np.float64]:
-        return BORING_ARRAY
-
-
-class NoExperiment:
-    metric_ordering: dict[str, str] = defaultdict(lambda: "max")
-    name = "No Experiment"
-    lookup_dict = {"arg": {"foo": 1}}
-
-    @staticmethod
-    def gen_data(*args: Any, **kwargs: Any) -> dict[str, Any]:
-        dummy = ProbData(
-            0.0,
-            BORING_ARRAY[0],
-            BORING_ARRAY,
-            BORING_ARRAY,
-            BORING_ARRAY,
-            ["x"],
-            None,
-        )
-        return {"data": {"trajectories": [dummy], "coeff_true": None}}
-
-    @staticmethod
-    def run(
-        *args: Any, return_all: bool = True, **kwargs: Any
-    ) -> Scores | tuple[Scores, DynamicsTrialData]:
-        metrics = defaultdict(
-            lambda: 1,
-            main=1,
-        )
-        if return_all:
-            trial_data: DynamicsTrialData = {
-                "dt": 1,
-                "coeff_true": BORING_ARRAY[:1],  # type: ignore
-                "coeff_fit": BORING_ARRAY[:1],  # type: ignore
-                # "coefficients": boring_array,
-                "feature_names": ["1"],
-                "input_features": ["x", "y"],
-                "t_train": np.arange(0, 1, 1, dtype=float),
-                "x_train": BORING_ARRAY,
-                "x_true": BORING_ARRAY,
-                "smooth_train": BORING_ARRAY,
-                "x_test": BORING_ARRAY,
-                "x_dot_test": BORING_ARRAY,
-                # "x_train_true": [boring_array],
-                "model": FakeModel(),
-            }
-            return {"metrics": metrics, "data": trial_data, "main": metrics["main"]}  # type: ignore # noqa
-        return metrics
-
-
-experiments: dict[str, tuple[Any, str | None]] = {
-    "sho": (odes, "sho"),
-    "lorenz": (odes, "lorenz"),
-    "lorenz_2d": (odes, "lorenz_2d"),
-    "pendulum": (odes, "pendulum"),
-    "cubic_ho": (odes, "cubic_ho"),
-    "vdp": (odes, "vdp"),
-    "hopf": (odes, "hopf"),
-    "duff": (odes, "duff"),
-    "lv": (odes, "lv"),
-    "ross": (odes, "ross"),
-    "none": (NoExperiment, None),
-}
+__all__ = [
+    "gen_data",
+    "fit_eval",
+    "ProbData",
+    "DynamicsTrialData",
+    "coeff_metrics",
+    "pred_metrics",
+    "integration_metrics",
+    "ODE_CLASSES",
+    "plot_ode_panel",
+    "plot_coefficients",
+    "compare_coefficient_plots_from_dicts",
+    "plot_test_trajectory",
+    "plot_training_data",
+    "COLOR",
+]

@@ -6,7 +6,7 @@ import jax.numpy as jnp
 import sympy2jax
 from sympy import Expr, Symbol
 
-from .typing import ProbData
+from ._typing import ProbData
 
 jax.config.update("jax_enable_x64", True)
 
@@ -90,7 +90,7 @@ def _signal_avg_power(signal: jax.Array) -> jax.Array:
 ## %  # noqa:E266
 if __name__ == "__main__":
     # Debug example
-    from sindy_exp.data import gen_data
+    from sindy_exp._data import gen_data
 
     data_dict = gen_data(
         "valliselnino",
