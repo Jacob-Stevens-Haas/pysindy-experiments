@@ -3,9 +3,9 @@ requires = ["setuptools>=62", "setuptools_scm[toml]>=6.2"]
 build-backend = "setuptools.build_meta"
 
 [project]
-name = "pysindy-experiments"
+name = "sindy-exp"
 dynamic = ["version"]
-description = "A flexible library for constructing dynamics ML experiments"
+description = "A basic library for constructing dynamics experiments"
 readme = "README.md"
 requires-python = ">=3.10"
 license = {file = "LICENSE"}
@@ -14,7 +14,7 @@ authors = [
   {email = "jacob.stevens.haas@gmail.com", name = "Jake Stevens-Haas"}
 ]
 classifiers = [
-  "Development Status :: 4 - Beta Copy",
+  "Development Status :: 4 - Beta",
   "Programming Language :: Python",
   "Framework :: Jupyter",
   "Intended Audience :: Science/Research",
