@@ -1,15 +1,17 @@
+from importlib import resources
 from logging import getLogger
-from typing import Any, Callable, Optional, cast
+from typing import Callable, Optional, cast
 
 import dysts.flows
 import dysts.systems
 import numpy as np
 import scipy
+import sympy as sp
+from dysts.base import DynSys
 
 from ._dysts_to_sympy import dynsys_to_sympy
-from ._odes import SHO, CubicHO, Hopf, Kinematics, LotkaVolterra, VanDerPol
 from ._plotting import plot_training_data
-from ._typing import Float1D, ProbData
+from ._typing import ExperimentResult, Float1D, ProbData
 from ._utils import _sympy_expr_to_feat_coeff
 
 try:
@@ -21,21 +23,12 @@ except ImportError:
 
 INTEGRATOR_KEYWORDS = {"rtol": 1e-12, "method": "LSODA", "atol": 1e-12}
 MOD_LOG = getLogger(__name__)
+LOCAL_DYNAMICS_PATH = resources.files("sindy_exp").joinpath("addl_attractors.json")
 
 ODE_CLASSES = {
     klass.lower(): getattr(dysts.flows, klass)
     for klass in dysts.systems.get_attractor_list()
 }
-ODE_CLASSES.update(
-    {
-        "lotkavolterra": LotkaVolterra,
-        "sho": SHO,
-        "cubicho": CubicHO,
-        "hopf": Hopf,
-        "vanderpol": VanDerPol,
-        "kinematics": Kinematics,
-    }
-)
 
 
 def gen_data(
@@ -49,7 +42,7 @@ def gen_data(
     t_end: float = 10,
     display: bool = False,
     array_namespace: str = "numpy",
-) -> dict[str, Any]:
+) -> ExperimentResult[tuple[list[ProbData], list[dict[sp.Expr, float]]]]:
     """Generate random training and test data
 
     An Experiment step according to the mitosis experiment runner.
@@ -146,7 +139,7 @@ def gen_data(
         figs = plot_training_data(sample.t_train, sample.x_train, sample.x_train_true)
         figs[0].suptitle("Sample Trajectory")
     return {
-        "data": {"trajectories": prob_data_list, "coeff_true": coeff_true},
+        "data": (prob_data_list, coeff_true),
         "main": f"{n_trajectories} trajectories of {rhsfunc}",
         "metrics": {"rel_noise": noise_rel, "abs_noise": noise_abs},
     }
@@ -200,3 +193,114 @@ def _max_amplitude(signal: np.ndarray, axis: int) -> float:
 
 def _signal_avg_power(signal: np.ndarray) -> float:
     return np.square(signal).mean()
+
+
+def _register_dyst(klass: type[DynSys]) -> type[DynSys]:
+    """Register a custom dysts DynSys class for use in sindy_exp data generation."""
+    ODE_CLASSES[klass.__name__.lower()] = klass
+    return klass
+
+
+@_register_dyst
+class LotkaVolterra(DynSys):
+    """Lotka-Volterra (predator-prey) dynamical system."""
+
+    nonnegative = True
+
+    def __init__(self):
+        super().__init__(metadata_path=LOCAL_DYNAMICS_PATH)
+
+    @staticmethod
+    def _rhs(x, y, t: float, alpha, beta, gamma, delta) -> np.ndarray:
+        """LV dynamics
+
+        Args:
+            x: prey population
+            y: predator population
+            t: time (ignored, since autonomous)
+            alpha: prey growth rate
+            beta: predation rate
+            delta: predator reproduction rate
+            gamma: predator death rate
+        """
+        dxdt = alpha * x - beta * x * y
+        dydt = delta * x * y - gamma * y
+        return np.array([dxdt, dydt])
+
+
+@_register_dyst
+class Hopf(DynSys):
+    """Hopf normal form dynamical system."""
+
+    def __init__(self):
+        super().__init__(metadata_path=LOCAL_DYNAMICS_PATH)
+
+    @staticmethod
+    def _rhs(x, y, t: float, mu, omega, A) -> np.ndarray:
+        dxdt = mu * x - omega * y - A * (x**3 + x * y**2)
+        dydt = omega * x + mu * y - A * (x**2 * y + y**3)
+        return np.array([dxdt, dydt])
+
+
+@_register_dyst
+class SHO(DynSys):
+    """Linear damped simple harmonic oscillator"""
+
+    def __init__(self):
+        super().__init__(metadata_path=LOCAL_DYNAMICS_PATH)
+
+    @staticmethod
+    def _rhs(x, y, t: float, a, b, c, d) -> np.ndarray:
+        dxdt = a * x + b * y
+        dydt = c * x + d * y
+        return np.array([dxdt, dydt])
+
+
+@_register_dyst
+class CubicHO(DynSys):
+    """Cubic damped harmonic oscillator."""
+
+    def __init__(self):
+        super().__init__(metadata_path=LOCAL_DYNAMICS_PATH)
+
+    @staticmethod
+    def _rhs(x, y, t: float, a, b, c, d) -> np.ndarray:
+        dxdt = a * x**3 + b * y**3
+        dydt = c * x**3 + d * y**3
+        return np.array([dxdt, dydt])
+
+
+@_register_dyst
+class VanDerPol(DynSys):
+    """Van der Pol oscillator.
+
+    dx/dt = y
+    dy/dt = mu * (1 - x^2) * y - x
+    """
+
+    def __init__(self):
+        super().__init__(metadata_path=LOCAL_DYNAMICS_PATH)
+
+    @staticmethod
+    def _rhs(x, x_dot, t: float, mu) -> np.ndarray:
+        dxdt = x_dot
+        dx2dt2 = mu * (1 - x**2) * x_dot - x
+        return np.array([dxdt, dx2dt2])
+
+
+@_register_dyst
+class Kinematics(DynSys):
+    """One-dimensional kinematics with constant acceleration.
+
+    dx/dt = v
+    dv/dt = a
+    """
+
+    def __init__(self):
+        super().__init__(metadata_path=LOCAL_DYNAMICS_PATH)
+
+    @staticmethod
+    def _rhs(x, v, t: float, a) -> np.ndarray:
+        dxdt = v
+        dvdt = a
+        return np.array([dxdt, dvdt])

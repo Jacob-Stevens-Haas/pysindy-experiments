@@ -1,12 +1,9 @@
-from importlib import resources
 from logging import getLogger
-from typing import Callable, TypeVar
+from typing import Any, Callable, Literal, TypeVar, cast, overload
 
 import matplotlib.pyplot as plt
 import numpy as np
-import pysindy as ps
 import sympy as sp
-from dysts.base import DynSys
 
 from ._plotting import (
     compare_coefficient_plots_from_dicts,
@@ -15,6 +12,7 @@ from ._plotting import (
 )
 from ._typing import (
     DynamicsTrialData,
+    ExperimentResult,
     FullDynamicsTrialData,
     ProbData,
     SINDyTrialUpdate,
@@ -41,7 +39,6 @@ metric_ordering = {
 T = TypeVar("T", bound=int)
 DType = TypeVar("DType", bound=np.dtype)
 MOD_LOG = getLogger(__name__)
-LOCAL_DYNAMICS_PATH = resources.files("sindy_exp").joinpath("addl_attractors.json")
 
 
 def _add_forcing(
@@ -68,112 +65,30 @@ def _add_forcing(
     return sum_of_terms
 
 
-class LotkaVolterra(DynSys):
-    """Lotka-Volterra (predator-prey) dynamical system."""
-
-    nonnegative = True
-
-    def __init__(self):
-        super().__init__(metadata_path=LOCAL_DYNAMICS_PATH)
-
-    @staticmethod
-    def _rhs(x, y, t: float, alpha, beta, gamma, delta) -> np.ndarray:
-        """LV dynamics
-
-        Args:
-            x: prey population
-            y: predator population
-            t: time (ignored, since autonomous)
-            alpha: prey growth rate
-            beta: predation rate
-            delta: predator reproduction rate
-            gamma: predator death rate
-        """
-        dxdt = alpha * x - beta * x * y
-        dydt = delta * x * y - gamma * y
-        return np.array([dxdt, dydt])
+@overload
+def fit_eval(
+    data: tuple[list[ProbData], list[dict[sp.Expr, float]]],
+    model: _BaseSINDy,
+    simulations: Literal[False],
+    display: bool,
+) -> ExperimentResult[DynamicsTrialData]: ...
 
 
-class Hopf(DynSys):
-    """Hopf normal form dynamical system."""
-
-    def __init__(self):
-        super().__init__(metadata_path=LOCAL_DYNAMICS_PATH)
-
-    @staticmethod
-    def _rhs(x, y, t: float, mu, omega, A) -> np.ndarray:
-        dxdt = mu * x - omega * y - A * (x**3 + x * y**2)
-        dydt = omega * x + mu * y - A * (x**2 * y + y**3)
-        return np.array([dxdt, dydt])
-
-
-class SHO(DynSys):
-    """Linear damped simple harmonic oscillator"""
-
-    def __init__(self):
-        super().__init__(metadata_path=LOCAL_DYNAMICS_PATH)
-
-    @staticmethod
-    def _rhs(x, y, t: float, a, b, c, d) -> np.ndarray:
-        dxdt = a * x + b * y
-        dydt = c * x + d * y
-        return np.array([dxdt, dydt])
-
-
-class CubicHO(DynSys):
-    """Cubic damped harmonic oscillator."""
-
-    def __init__(self):
-        super().__init__(metadata_path=LOCAL_DYNAMICS_PATH)
-
-    @staticmethod
-    def _rhs(x, y, t: float, a, b, c, d) -> np.ndarray:
-        dxdt = a * x**3 + b * y**3
-        dydt = c * x**3 + d * y**3
-        return np.array([dxdt, dydt])
-
-
-class VanDerPol(DynSys):
-    """Van der Pol oscillator.
-
-    dx/dt = y
-    dy/dt = mu * (1 - x^2) * y - x
-    """
-
-    def __init__(self):
-        super().__init__(metadata_path=LOCAL_DYNAMICS_PATH)
-
-    @staticmethod
-    def _rhs(x, x_dot, t: float, mu) -> np.ndarray:
-        dxdt = x_dot
-        dx2dt2 = mu * (1 - x**2) * x_dot - x
-        return np.array([dxdt, dx2dt2])
-
-
-class Kinematics(DynSys):
-    """One-dimensional kinematics with constant acceleration.
-
-    dx/dt = v
-    dv/dt = a
-    """
-
-    def __init__(self):
-        super().__init__(metadata_path=LOCAL_DYNAMICS_PATH)
-
-    @staticmethod
-    def _rhs(x, v, t: float, a) -> np.ndarray:
-        dxdt = v
-        dvdt = a
-        return np.array([dxdt, dvdt])
+@overload
+def fit_eval(
+    data: tuple[list[ProbData], list[dict[sp.Expr, float]]],
+    model: _BaseSINDy,
+    simulations: Literal[True],
+    display: bool,
+) -> ExperimentResult[FullDynamicsTrialData]: ...
 
 
 def fit_eval(
     data: tuple[list[ProbData], list[dict[sp.Expr, float]]],
-    model: _BaseSINDy,
+    model: Any,
     simulations: bool = True,
     display: bool = True,
-    return_all: bool = True,
-) -> dict | tuple[dict, DynamicsTrialData | FullDynamicsTrialData]:
+) -> ExperimentResult:
     """Fit and evaluate a SINDy model on a set of trajectories.
 
     Args:
@@ -184,11 +99,8 @@ def fit_eval(
         model: A SINDy-like model implementing the _BaseSINDy protocol.
         simulations: Whether to run forward simulations for evaluation.
         display: Whether to generate plots as part of evaluation.
-        return_all: If True, return a dictionary containing metrics and the
-            assembled DynamicsTrialData; otherwise return only the metrics
-            dictionary.
     """
-
+    model = cast(_BaseSINDy, model)
     trajectories, true_equations = data
     input_features = trajectories[0].input_features
 
@@ -198,12 +110,16 @@ def fit_eval(
 
     MOD_LOG.info(f"Fitting a model: {model}")
     coeff_true_dicts, coeff_est_dicts = unionize_coeff_dicts(model, true_equations)
-    if isinstance(model.feature_library, ps.WeakPDELibrary):
+
+    # Special workaround for pysindy's legacy WeakPDELibrary
+    if hasattr(model.feature_library, "K"):
         # WeakPDE library fails to simulate, so insert nonweak library
         # to Pipeline and SINDy model.
         inner_lib = model.feature_library.function_library
         model.feature_library = inner_lib  # type: ignore  # TODO: Fix in pysindy
-    if isinstance(model, ps.SINDy) and hasattr(
+
+    # Special workaround for pysindy's bad (soon to be legacy) differentiation API
+    if hasattr(model, "differentiation_method") and hasattr(
         model.differentiation_method, "smoothed_x_"
     ):
         smooth_x = []
@@ -212,6 +128,7 @@ def fit_eval(
             smooth_x.append(model.differentiation_method.smoothed_x_)
     else:  # using WeakPDELibrary
         smooth_x = x_train
+
     trial_data = DynamicsTrialData(
         trajectories=trajectories,
         true_equations=coeff_true_dicts,
@@ -264,9 +181,8 @@ def fit_eval(
                     figs=(fig_composite, fig_by_coord_1d),
                     coord_names=input_features,
                 )
-    if return_all:
-        return {"metrics": metrics, "data": trial_data, "main": metrics["main"]}
-    return metrics
+
+    return {"metrics": metrics, "data": trial_data, "main": metrics["main"]}
 
 
 def plot_ode_panel(trial_data: DynamicsTrialData):

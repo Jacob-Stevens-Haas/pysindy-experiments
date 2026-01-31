@@ -7,7 +7,7 @@ from ._plotting import (
     plot_test_trajectory,
     plot_training_data,
 )
-from ._typing import DynamicsTrialData, ProbData
+from ._typing import DynamicsTrialData, FullDynamicsTrialData, ProbData
 from ._utils import coeff_metrics, integration_metrics, pred_metrics
 
 __all__ = [
@@ -15,6 +15,7 @@ __all__ = [
     "fit_eval",
     "ProbData",
     "DynamicsTrialData",
+    "FullDynamicsTrialData",
     "coeff_metrics",
     "pred_metrics",
     "integration_metrics",

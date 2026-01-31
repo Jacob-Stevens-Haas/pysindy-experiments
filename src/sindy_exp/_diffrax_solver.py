@@ -85,20 +85,3 @@ def _gen_data_jax(
 
 def _signal_avg_power(signal: jax.Array) -> jax.Array:
     return jnp.square(signal).mean()
-
-
-## %  # noqa:E266
-if __name__ == "__main__":
-    # Debug example
-    from sindy_exp._data import gen_data
-
-    data_dict = gen_data(
-        "valliselnino",
-        seed=50,
-        n_trajectories=1,
-        ic_stdev=3,
-        noise_rel=0.1,
-        display=True,
-        array_namespace="jax",
-    )
-    print(data_dict["input_features"])

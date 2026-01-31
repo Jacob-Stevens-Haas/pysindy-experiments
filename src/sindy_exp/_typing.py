@@ -7,6 +7,7 @@ from typing import (
     NamedTuple,
     Optional,
     Protocol,
+    TypedDict,
     TypeVar,
     overload,
 )
@@ -25,6 +26,14 @@ FloatND = np.ndarray[Shape, np.dtype[np.floating[NBitBase]]]
 
 
 TrajectoryType = TypeVar("TrajectoryType", list[np.ndarray], np.ndarray)
+
+
+class ExperimentResult[T](TypedDict):
+    """Results from a SINDy ODE experiment."""
+
+    metrics: float
+    data: T
+    main: float
 
 
 class _BaseSINDy(Protocol):

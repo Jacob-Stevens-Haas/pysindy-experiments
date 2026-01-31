@@ -95,6 +95,9 @@ markers = ["slow"]
 files = [
   "src/sindy_exp/__init__.py",
   "src/sindy_exp/_utils.py",
+  "src/sindy_exp/_diffrax_solver.py",
+  "src/sindy_exp/_odes.py",
+  "src/sindy_exp/_typing.py",
   "tests/test_all.py",
 ]
 

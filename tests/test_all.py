@@ -180,7 +180,7 @@ def test_gen_data(rhs_name, array_namespace, jax_cpu_only):
     result = gen_data(
         rhs_name, t_end=0.1, noise_abs=0.01, seed=42, array_namespace=array_namespace
     )["data"]
-    trajectories = result["trajectories"]
+    trajectories = result[0]
     assert len(trajectories) == 1
     traj = trajectories[0]
     assert traj.x_train.shape == traj.x_train_true_dot.shape

@@ -182,14 +182,18 @@ def coeff_metrics(
             coefficients[row_ind, col_ind] = est_row[feat]
 
     metrics: dict[str, float | np.floating] = {}
-    metrics["coeff_precision"] = sklearn.metrics.precision_score(
-        coeff_true.flatten() != 0, coefficients.flatten() != 0
+    metrics["coeff_precision"] = float(
+        sklearn.metrics.precision_score(
+            coeff_true.flatten() != 0, coefficients.flatten() != 0
+        )
     )
-    metrics["coeff_recall"] = sklearn.metrics.recall_score(
-        coeff_true.flatten() != 0, coefficients.flatten() != 0
+    metrics["coeff_recall"] = float(
+        sklearn.metrics.recall_score(
+            coeff_true.flatten() != 0, coefficients.flatten() != 0
+        )
     )
-    metrics["coeff_f1"] = sklearn.metrics.f1_score(
-        coeff_true.flatten() != 0, coefficients.flatten() != 0
+    metrics["coeff_f1"] = float(
+        sklearn.metrics.f1_score(coeff_true.flatten() != 0, coefficients.flatten() != 0)
     )
     metrics["coeff_mse"] = sklearn.metrics.mean_squared_error(
         coeff_true.flatten(), coefficients.flatten()
@@ -277,51 +281,6 @@ def unionize_coeff_dicts(
         est_aligned.append({feat: est_eq.get(feat, 0.0) for feat in all_features})
 
     return true_aligned, est_aligned
-
-
-def make_model(
-    input_features: list[str],
-    dt: float,
-    diff_params: dict | ps.BaseDifferentiation,
-    feat_params: dict | ps.feature_library.base.BaseFeatureLibrary,
-    opt_params: dict | ps.BaseOptimizer,
-) -> ps.SINDy:
-    """Build a model with object parameters dictionaries
-
-    e.g. {"kind": "finitedifference"} instead of FiniteDifference()
-    """
-
-    def finalize_param(lookup_func, pdict, lookup_key):
-        try:
-            cls_name = pdict.pop(lookup_key)
-        except AttributeError:
-            cls_name = pdict.vals.pop(lookup_key)
-            pdict = pdict.vals
-
-        param_cls = lookup_func(cls_name)
-        param_final = param_cls(**pdict)
-        pdict[lookup_key] = cls_name
-        return param_final
-
-    if isinstance(diff_params, ps.BaseDifferentiation):
-        diff = diff_params
-    else:
-        diff = finalize_param(diff_lookup, diff_params, "diffcls")
-    if isinstance(feat_params, ps.feature_library.base.BaseFeatureLibrary):
-        features = feat_params
-    else:
-        features = finalize_param(feature_lookup, feat_params, "featcls")
-    if isinstance(opt_params, ps.BaseOptimizer):
-        opt = opt_params
-    else:
-        opt = finalize_param(opt_lookup, opt_params, "optcls")
-    return ps.SINDy(
-        differentiation_method=diff,
-        optimizer=opt,
-        t_default=dt,  # type: ignore
-        feature_library=features,
-        feature_names=input_features,
-    )
 
 
 def _simulate_test_data(
