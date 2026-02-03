@@ -7,13 +7,14 @@ from ._plotting import (
     plot_test_trajectory,
     plot_training_data,
 )
-from ._typing import DynamicsTrialData, FullDynamicsTrialData, ProbData
+from ._typing import DynamicsTrialData, FullDynamicsTrialData, ProbData, SimProbData
 from ._utils import coeff_metrics, integration_metrics, pred_metrics
 
 __all__ = [
     "gen_data",
     "fit_eval",
     "ProbData",
+    "SimProbData",
     "DynamicsTrialData",
     "FullDynamicsTrialData",
     "coeff_metrics",

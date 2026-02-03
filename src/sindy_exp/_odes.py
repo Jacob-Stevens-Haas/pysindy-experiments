@@ -1,5 +1,5 @@
 from logging import getLogger
-from typing import Any, Callable, Literal, TypeVar, cast, overload
+from typing import Any, Literal, TypeVar, cast, overload
 
 import matplotlib.pyplot as plt
 import numpy as np
@@ -14,7 +14,7 @@ from ._typing import (
     DynamicsTrialData,
     ExperimentResult,
     FullDynamicsTrialData,
-    ProbData,
+    SimProbData,
     SINDyTrialUpdate,
     _BaseSINDy,
 )
@@ -41,33 +41,9 @@ DType = TypeVar("DType", bound=np.dtype)
 MOD_LOG = getLogger(__name__)
 
 
-def _add_forcing(
-    forcing_func: Callable[[float], np.ndarray[tuple[T], DType]],
-    auto_func: Callable[
-        [float, np.ndarray[tuple[T], DType]], np.ndarray[tuple[T], DType]
-    ],
-) -> Callable[[float, np.ndarray], np.ndarray]:
-    """Add a time-dependent forcing term to a rhs func
-
-    Args:
-        forcing_func: The forcing function to add
-        auto_func: An existing rhs func for solve_ivp
-
-    Returns:
-        A rhs function for integration
-    """
-
-    def sum_of_terms(
-        t: float, state: np.ndarray[tuple[T], DType]
-    ) -> np.ndarray[tuple[T], DType]:
-        return np.array(forcing_func(t)) + np.array(auto_func(t, state))
-
-    return sum_of_terms
-
-
 @overload
 def fit_eval(
-    data: tuple[list[ProbData], list[dict[sp.Expr, float]]],
+    data: tuple[list[SimProbData], list[dict[sp.Expr, float]]],
     model: _BaseSINDy,
     simulations: Literal[False],
     display: bool,
@@ -76,7 +52,7 @@ def fit_eval(
 
 @overload
 def fit_eval(
-    data: tuple[list[ProbData], list[dict[sp.Expr, float]]],
+    data: tuple[list[SimProbData], list[dict[sp.Expr, float]]],
     model: _BaseSINDy,
     simulations: Literal[True],
     display: bool,
@@ -84,7 +60,7 @@ def fit_eval(
 
 
 def fit_eval(
-    data: tuple[list[ProbData], list[dict[sp.Expr, float]]],
+    data: tuple[list[SimProbData], list[dict[sp.Expr, float]]],
     model: Any,
     simulations: bool = True,
     display: bool = True,
@@ -93,7 +69,7 @@ def fit_eval(
 
     Args:
         data: Tuple of (trajectories, true_equations), where ``trajectories`` is
-            a list of ProbData objects and ``true_equations`` is a list of
+            a list of SimProbData objects and ``true_equations`` is a list of
             dictionaries mapping SymPy symbols to their true coefficients for
             each state coordinate.
         model: A SINDy-like model implementing the _BaseSINDy protocol.
@@ -101,6 +77,8 @@ def fit_eval(
         display: Whether to generate plots as part of evaluation.
     """
     model = cast(_BaseSINDy, model)
+    for trajectory in data[0]:
+        assert trajectory.x_train_true is not None
     trajectories, true_equations = data
     input_features = trajectories[0].input_features
 
@@ -143,7 +121,7 @@ def fit_eval(
         sims: list[SINDyTrialUpdate] = []
         integration_metric_list: list[dict[str, float | np.floating]] = []
         for traj in trajectories:
-            sim = _simulate_test_data(model, traj.dt, traj.x_train_true)
+            sim = _simulate_test_data(model, traj.t_train, traj.x_train_true)
             sims.append(sim)
             integration_metric_list.append(
                 integration_metrics(
@@ -154,9 +132,9 @@ def fit_eval(
                 )
             )
 
-        agg_integration_metrics: dict[str, float | np.floating] = {}
+        agg_integration_metrics: dict[str, float] = {}
         for key in integration_metric_list[0].keys():
-            values = [m[key] for m in integration_metric_list]
+            values = cast(list[float], [m[key] for m in integration_metric_list])
             agg_integration_metrics[key] = float(np.mean(values))
         metrics.update(agg_integration_metrics)
 

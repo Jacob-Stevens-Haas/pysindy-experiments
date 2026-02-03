@@ -149,7 +149,7 @@ def opt_lookup(kind):
 def coeff_metrics(
     coeff_est_dicts: list[dict[sp.Expr, float]],
     coeff_true_dicts: list[dict[sp.Expr, float]],
-) -> dict[str, float | np.floating]:
+) -> dict[str, float]:
     """Compute coefficient metrics from aligned coefficient dictionaries.
 
     Both arguments are expected to be lists of coefficient dictionaries sharing
@@ -202,7 +202,7 @@ def coeff_metrics(
         coeff_true.flatten(), coefficients.flatten()
     )
     metrics["main"] = metrics["coeff_f1"]
-    return metrics
+    return {k: float(v) for k, v in metrics.items()}
 
 
 def pred_metrics(
@@ -284,7 +284,7 @@ def unionize_coeff_dicts(
 
 
 def _simulate_test_data(
-    model: _BaseSINDy, dt: float, x_test: Float2D
+    model: _BaseSINDy, t_test: Float1D, x_test: Float2D
 ) -> SINDyTrialUpdate:
     """Add simulation data to grid_data
 
@@ -292,7 +292,6 @@ def _simulate_test_data(
     Returns:
         Complete GridPointData
     """
-    t_test = cast(Float1D, np.arange(0, len(x_test) * dt, step=dt))
     t_sim = t_test
     try:
 

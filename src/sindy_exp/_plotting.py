@@ -57,7 +57,7 @@ def plot_coefficients(
     feature_names: Sequence[str],
     ax: Axes,
     **heatmap_kws,
-) -> None:
+) -> Axes:
     """Plot a set of dynamical system coefficients in a heatmap.
 
     Args:
@@ -162,6 +162,7 @@ def _compare_coefficient_plots_impl(
                 1, 2, figsize=(1.9 * n_cols, 8), sharey=True, sharex=True
             )
             fig.tight_layout()
+            assert axs is not None  # type narrowing
 
         vmax = signed_root(max_val)
 
@@ -275,7 +276,12 @@ def _plot_training_trajectory(
     """
     if x_train.shape[1] == 2:
         ax.plot(
-            x_true[:, 0], x_true[:, 1], ".", label="True", color=COLOR.TRUE, **PLOT_KWS
+            x_true[:, 0],
+            x_true[:, 1],
+            ".",
+            label="True",
+            color=COLOR.TRUE,
+            **PLOT_KWS,  # type: ignore[arg-type]
         )
         ax.plot(
             x_train[:, 0],
@@ -283,7 +289,7 @@ def _plot_training_trajectory(
             ".",
             label="Measured",
             color=COLOR.MEAS,
-            **PLOT_KWS,
+            **PLOT_KWS,  # type: ignore[arg-type]
         )
         if (
             x_smooth is not None
@@ -295,7 +301,7 @@ def _plot_training_trajectory(
                 ".",
                 label="Smoothed",
                 color=COLOR.EST,
-                **PLOT_KWS,
+                **PLOT_KWS,  # type: ignore[arg-type]
             )
         if labels:
             ax.set(xlabel="$x_0$", ylabel="$x_1$")
@@ -308,7 +314,7 @@ def _plot_training_trajectory(
             x_true[:, 2],
             color=COLOR.TRUE,
             label="True values",
-            **PLOT_KWS,
+            **PLOT_KWS,  # type: ignore[arg-type]
         )
 
         ax.plot(

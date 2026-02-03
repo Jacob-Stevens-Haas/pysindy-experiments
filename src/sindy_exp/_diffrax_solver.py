@@ -6,7 +6,7 @@ import jax.numpy as jnp
 import sympy2jax
 from sympy import Expr, Symbol
 
-from ._typing import ProbData
+from ._typing import SimProbData
 
 jax.config.update("jax_enable_x64", True)
 
@@ -22,7 +22,7 @@ def _gen_data_jax(
     nonnegative: bool,
     dt: float,
     t_end: float,
-) -> ProbData:
+) -> SimProbData:
     rhstree = sympy2jax.SymbolicModule(exprs)
 
     def ode_sys(t, state, args):
@@ -71,6 +71,8 @@ def _gen_data_jax(
     if noise_abs is None:
         assert noise_rel is not None  # force type narrowing
         noise_abs = float(jnp.sqrt(_signal_avg_power(x_train_true)) * noise_rel)
+    else:
+        noise_rel = noise_abs / float(jnp.sqrt(_signal_avg_power(x_train_true)))
 
     x_train = x_train_true + jax.random.normal(key, x_train_true.shape) * noise_abs
 
@@ -78,8 +80,14 @@ def _gen_data_jax(
     x_train_true_dot = jnp.array([ode_sys(0, xi, None) for xi in x_train_true])
 
     stringy_features = [sym.name for sym in input_features]
-    return ProbData(
-        dt, t_train, x_train, x_train_true, x_train_true_dot, stringy_features, sol
+    return SimProbData(
+        t_train,  # type: ignore # jax->numpy
+        x_train,  # type: ignore # jax->numpy
+        stringy_features,
+        x_train_true,  # type: ignore # jax->numpy
+        x_train_true_dot,  # type: ignore # jax->numpy
+        noise_abs,
+        sol,
     )
 
 

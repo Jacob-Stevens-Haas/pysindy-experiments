@@ -1,10 +1,10 @@
 from collections import defaultdict
+from collections.abc import Mapping
 from dataclasses import dataclass
 from typing import (
     Any,
     Callable,
     Literal,
-    NamedTuple,
     Optional,
     Protocol,
     TypedDict,
@@ -31,9 +31,9 @@ TrajectoryType = TypeVar("TrajectoryType", list[np.ndarray], np.ndarray)
 class ExperimentResult[T](TypedDict):
     """Results from a SINDy ODE experiment."""
 
-    metrics: float
+    metrics: Mapping[str, float | None]
     data: T
-    main: float
+    main: object
 
 
 class _BaseSINDy(Protocol):
@@ -71,23 +71,38 @@ class _BaseSINDy(Protocol):
         self, precision: int, fmt: Literal["sympy"]
     ) -> list[dict[Expr, float]]: ...
 
+    @overload
+    def print(self, **kwargs) -> None: ...
+
+    @overload
     def print(self, precision: int, **kwargs) -> None: ...
 
     def get_feature_names(self) -> list[str]: ...
 
 
-class ProbData(NamedTuple):
-    """Data bundle for a single trajectory.
+@dataclass
+class ProbData:
+    """Represents a single trajectory's data.
 
-    Represents a trajectory's training data and associated metadata.
+    For measured data, only t_train, x_train, and input_features are required.
     """
 
-    dt: float
     t_train: Float1D
     x_train: Float2D
+    input_features: list[str]
+
+
+@dataclass
+class SimProbData(ProbData):
+    """For simulated data, the noiseless trajectory is known.
+
+    Optionally includes the integrator solution object for evaluating
+    at other points.
+    """
+
     x_train_true: Float2D
     x_train_true_dot: Float2D
-    input_features: list[str]
+    noise_abs: float
     integrator: Optional[Any] = None  # diffrax.Solution
 
 
@@ -147,7 +162,7 @@ class NestedDict(defaultdict):
 
 @dataclass
 class DynamicsTrialData:
-    trajectories: list[ProbData]
+    trajectories: list[SimProbData]
     true_equations: list[dict[sp.Expr, float]]
     sindy_equations: list[dict[sp.Expr, float]]
     model: _BaseSINDy

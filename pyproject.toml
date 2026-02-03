@@ -29,6 +29,7 @@ dependencies = [
   "scipy",
   "sympy",
   "dysts",
+  "scikit-learn",
 ]
 
 [project.optional-dependencies]
@@ -94,25 +95,16 @@ markers = ["slow"]
 [tool.mypy]
 files = [
   "src/sindy_exp/__init__.py",
+  "src/sindy_exp/_data.py",
   "src/sindy_exp/_utils.py",
   "src/sindy_exp/_diffrax_solver.py",
   "src/sindy_exp/_odes.py",
+  "src/sindy_exp/_plotting.py",
   "src/sindy_exp/_typing.py",
   "tests/test_all.py",
 ]
+warn_unused_configs = true
 
 [[tool.mypy.overrides]]
-module="sklearn.*"
-ignore_missing_imports=true
-
-[[tool.mypy.overrides]]
-module="pysindy.*"
-ignore_missing_imports=true
-
-[[tool.mypy.overrides]]
-module="sympy.*"
-ignore_missing_imports=true
-
-[[tool.mypy.overrides]]
-module="scipy.*"
-ignore_missing_imports=true
+module = ["sindy_exp.*"]
+disable_error_code = ["import-untyped"]
