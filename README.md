@@ -2,16 +2,16 @@
 
 A library for constructing dynamics experiments from the dynamics models in the `dysts` package.
 This includes data generation and model evaluation.
-The first contribution is the static typing of trajectory data (`ProbData`) that, I believe, provides the necesary information to be useful in evaluating a wide variety of dynamics/time-series learning methods.
+The first contribution is the static typing of trajectory data (`ProbData`) that, I believe, provides the necessary information to be useful in evaluating a wide variety of dynamics/time-series learning methods.
 The second contribution is the collection of utility functions for designing dynamics learning experiments.
 The third contribution is the collection of such experiments for evaluating dynamics/time-series learning models that meet the `BaseSINDy` API.
 
-It aims to (a) be amenable to both `numpy` and `jax` arrays, (b) be useable by any dynamics/time-series learning models that meet the `BaseSINDy` or scikit-time API.
+It aims to (a) be amenable to both `numpy` and `jax` arrays, (b) be usable by any dynamics/time-series learning models that meet the `BaseSINDy` or scikit-time API.
 Internally, this package is used/will be used in benchmarking pysindy runtime/memory usage and choosing default hyperparameters.
 
 ## Getting started
 
-Install with `pip install sindy-exp`
+Install with `pip install sindy-exp` or `pip install sindy-exp[jax]`.
 
 Generate data
 

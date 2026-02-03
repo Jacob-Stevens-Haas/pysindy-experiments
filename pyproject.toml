@@ -108,3 +108,7 @@ warn_unused_configs = true
 [[tool.mypy.overrides]]
 module = ["sindy_exp.*"]
 disable_error_code = ["import-untyped"]
+
+[[tool.mypy.overrides]]
+module = ["pysindy.*", "sympy.*"]
+ignore_missing_imports = true
