@@ -81,10 +81,10 @@ def _sindy_equations_to_sympy(model: _BaseSINDy) -> tuple[list[sp.Expr], list[sp
     """
 
     # Use a fixed precision for reproducible string equations.
-    input_features = {feat: sp.sympify(feat) for feat in model.feature_names}
+    input_features = {feat: sp.sympify(feat) for feat in model.feature_names_}
     eq_strings = model.equations(10)  # type: ignore[call-arg]
     feat_strs = model.feature_library.get_feature_names(
-        input_features=model.feature_names
+        input_features=model.feature_names_
     )
     xforms = standard_transformations + (
         implicit_multiplication_application,

@@ -39,7 +39,7 @@ class ExperimentResult[T](TypedDict):
 class _BaseSINDy(Protocol):
     optimizer: Any
     feature_library: Any
-    feature_names: list[str]
+    feature_names_: list[str]
 
     def fit(self, x: TrajectoryType, t: TrajectoryType, *args, **kwargs) -> Self: ...
 
