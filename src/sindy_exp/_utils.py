@@ -48,7 +48,9 @@ def _sympy_expr_to_feat_coeff(sp_expr: list[sp.Expr]) -> list[dict[sp.Expr, floa
             try:
                 # Assume multiplication is coefficient * feature(s)
                 coeff = float(term.args[0])
-                args = term.args[1:]
+                # Try to make features consistently ordered, bc sympy equality
+                # doesn't assume commutativity of multiplication.
+                args = sorted(term.args[1:], key=str)
             except TypeError:
                 # e.g. x**2 or x * y has no numeric coefficient
                 coeff = 1.0
@@ -91,12 +93,10 @@ def _sindy_equations_to_sympy(model: _BaseSINDy) -> tuple[list[sp.Expr], list[sp
         convert_xor,
     )
     feat_symb = [
-        parse_expr(fstr, transformations=xforms, evaluate=False) for fstr in feat_strs
+        parse_expr(fstr, transformations=xforms, evaluate=True) for fstr in feat_strs
     ]
     eq_symb = [
-        parse_expr(
-            eq, local_dict=input_features, transformations=xforms, evaluate=False
-        )
+        parse_expr(eq, local_dict=input_features, transformations=xforms, evaluate=True)
         for eq in eq_strings
     ]
     return feat_symb, eq_symb
