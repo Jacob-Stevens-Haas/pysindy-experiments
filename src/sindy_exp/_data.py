@@ -8,10 +8,11 @@ import numpy as np
 import scipy
 import sympy as sp
 from dysts.base import DynSys
+from mitosis.typing import ExpResult
 
 from ._dysts_to_sympy import dynsys_to_sympy
 from ._plotting import plot_training_data
-from ._typing import ExperimentResult, Float1D, SimProbData
+from ._typing import Float1D, SimProbData
 from ._utils import _sympy_expr_to_feat_coeff
 
 try:
@@ -42,7 +43,7 @@ def gen_data(
     t_end: float = 10,
     display: bool = False,
     array_namespace: str = "numpy",
-) -> ExperimentResult[tuple[list[SimProbData], list[dict[sp.Expr, float]]]]:
+) -> ExpResult[tuple[list[SimProbData], list[dict[sp.Expr, float]]]]:
     """Generate random training and test data
 
     An Experiment step according to the mitosis experiment runner.

@@ -4,6 +4,7 @@ from typing import Any, Literal, TypeVar, cast, overload
 import matplotlib.pyplot as plt
 import numpy as np
 import sympy as sp
+from mitosis.typing import ExpResult
 
 from ._plotting import (
     compare_coefficient_plots_from_dicts,
@@ -12,7 +13,6 @@ from ._plotting import (
 )
 from ._typing import (
     DynamicsTrialData,
-    ExperimentResult,
     FullDynamicsTrialData,
     SimProbData,
     SINDyTrialUpdate,
@@ -47,7 +47,7 @@ def fit_eval(
     model: _BaseSINDy,
     simulations: Literal[False],
     display: bool,
-) -> ExperimentResult[DynamicsTrialData]: ...
+) -> ExpResult[DynamicsTrialData]: ...
 
 
 @overload
@@ -56,7 +56,7 @@ def fit_eval(
     model: _BaseSINDy,
     simulations: Literal[True],
     display: bool,
-) -> ExperimentResult[FullDynamicsTrialData]: ...
+) -> ExpResult[FullDynamicsTrialData]: ...
 
 
 def fit_eval(
@@ -64,7 +64,7 @@ def fit_eval(
     model: Any,
     simulations: bool = True,
     display: bool = True,
-) -> ExperimentResult:
+) -> ExpResult:
     """Fit and evaluate a SINDy model on a set of trajectories.
 
     Args:

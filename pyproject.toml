@@ -30,6 +30,7 @@ dependencies = [
   "sympy",
   "dysts",
   "scikit-learn",
+  "mitosis >= 0.6.2",
 ]
 
 [project.optional-dependencies]
