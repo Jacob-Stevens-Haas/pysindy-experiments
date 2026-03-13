@@ -1,16 +1,6 @@
 from collections import defaultdict
-from collections.abc import Mapping
 from dataclasses import dataclass
-from typing import (
-    Any,
-    Callable,
-    Literal,
-    Optional,
-    Protocol,
-    TypedDict,
-    TypeVar,
-    overload,
-)
+from typing import Any, Callable, Literal, Optional, Protocol, TypeVar, overload
 
 import numpy as np
 import sympy as sp
@@ -26,14 +16,6 @@ FloatND = np.ndarray[Shape, np.dtype[np.floating[NBitBase]]]
 
 
 TrajectoryType = TypeVar("TrajectoryType", list[np.ndarray], np.ndarray)
-
-
-class ExperimentResult[T](TypedDict):
-    """Results from a SINDy ODE experiment."""
-
-    metrics: Mapping[str, float | None]
-    data: T
-    main: object
 
 
 class _BaseSINDy(Protocol):
