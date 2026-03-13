@@ -127,7 +127,7 @@ def test_unionize_coeff_dicts_aligns_features():
             return ["1", x, y, z]
 
     class DummyModel:
-        feature_names: list[str] = ["x", "y", "z"]
+        feature_names_: list[str] = ["x", "y", "z"]
         feature_library: ps.feature_library.base.BaseFeatureLibrary = DummyFeatures()
 
         def equations(self, precision: int = 10):
